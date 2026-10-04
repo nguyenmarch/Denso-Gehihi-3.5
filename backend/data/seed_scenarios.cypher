@@ -1,0 +1,14 @@
+// Idempotent seed for the production chain and the three incident scenarios.
+UNWIND [{id:'STEP_PASTE',name:'Solder Paste Printing',sequence:1},{id:'STEP_SMT',name:'High-speed Pick & Place',sequence:2},{id:'STEP_REFLOW',name:'Reflow Soldering',sequence:3},{id:'STEP_AOI',name:'Automated Optical Inspection',sequence:4},{id:'STEP_PACK',name:'Final Packaging',sequence:5}] AS x MERGE (n:ProcessStep {id:x.id}) SET n += x;
+MATCH (a:ProcessStep {id:'STEP_PASTE'}),(b:ProcessStep {id:'STEP_SMT'}),(c:ProcessStep {id:'STEP_REFLOW'}),(d:ProcessStep {id:'STEP_AOI'}),(e:ProcessStep {id:'STEP_PACK'}) MERGE (a)-[:FLOWS_TO]->(b) MERGE (b)-[:FLOWS_TO]->(c) MERGE (c)-[:FLOWS_TO]->(d) MERGE (d)-[:FLOWS_TO]->(e);
+UNWIND [{id:'EQ_PRINTER_01',name:'Solder Paste Printer',step:'STEP_PASTE'},{id:'EQ_SMT_01',name:'SMT Pick and Place',step:'STEP_SMT'},{id:'EQ_OVEN_01',name:'Reflow Oven Alpha',step:'STEP_REFLOW'},{id:'EQ_AOI_01',name:'AOI Station 01',step:'STEP_AOI'},{id:'EQ_PACK_01',name:'Packaging Cell 01',step:'STEP_PACK'}] AS x MERGE (n:Equipment {id:x.id}) SET n.name=x.name,n.status='ONLINE' WITH n,x MATCH (s:ProcessStep {id:x.step}) MERGE (n)-[:OPERATES_IN]->(s);
+UNWIND [{id:'BATCH_2026_001',name:'Production Batch 001',step:'STEP_REFLOW',priority:'HIGH'},{id:'BATCH_2026_002',name:'Production Batch 002',step:'STEP_SMT',priority:'NORMAL'}] AS x MERGE (b:Batch {id:x.id}) SET b.name=x.name,b.status='IN_PROGRESS',b.priority=x.priority WITH b,x MATCH (s:ProcessStep {id:x.step}) MERGE (b)-[:PROCESSED_BY]->(s);
+UNWIND [{id:'DEP_MAINT',name:'Maintenance & Facility'},{id:'DEP_PROD',name:'Production Planning'},{id:'DEP_QA',name:'Quality Assurance'},{id:'DEP_SCM',name:'Supply Chain & Warehouse'}] AS x MERGE (d:Department {id:x.id}) SET d.name=x.name;
+MATCH (d:Department {id:'DEP_MAINT'}),(e:Equipment) MERGE (d)-[:RESPONSIBLE_FOR]->(e);
+MATCH (d:Department {id:'DEP_PROD'}),(s:ProcessStep) MERGE (d)-[:RESPONSIBLE_FOR]->(s);
+MATCH (d:Department {id:'DEP_QA'}),(s:ProcessStep) WHERE s.id IN ['STEP_REFLOW','STEP_AOI'] MERGE (d)-[:RESPONSIBLE_FOR]->(s);
+MATCH (d:Department {id:'DEP_SCM'}),(s:ProcessStep) WHERE s.id IN ['STEP_PASTE','STEP_SMT'] MERGE (d)-[:RESPONSIBLE_FOR]->(s);
+UNWIND [{id:'CAUSE_OVEN_HEATER',name:'Reflow heater failure',target:'STEP_REFLOW',severity:1.0},{id:'CAUSE_CAP_TOLERANCE',name:'Capacitor tolerance drift',target:'STEP_AOI',severity:0.8},{id:'CAUSE_AOI_BOTTLENECK',name:'AOI cycle-time spike',target:'STEP_PACK',severity:0.7}] AS x MERGE (i:IncidentEvent {id:x.id}) SET i.name=x.name,i.status='ACTIVE',i.severity=x.severity WITH i,x MATCH (s:ProcessStep {id:x.target}) MERGE (i)-[:AFFECTS]->(s);
+MATCH (e:Equipment {id:'EQ_OVEN_01'}),(s:ProcessStep {id:'STEP_REFLOW'}) MERGE (e)-[:CAN_CAUSE]->(s);
+MATCH (s:ProcessStep {id:'STEP_SMT'}),(t:ProcessStep {id:'STEP_AOI'}) MERGE (s)-[:CAN_CAUSE]->(t);
+MATCH (s:ProcessStep {id:'STEP_AOI'}),(t:ProcessStep {id:'STEP_PACK'}) MERGE (s)-[:CAN_CAUSE]->(t);

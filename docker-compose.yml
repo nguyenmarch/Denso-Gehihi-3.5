@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  neo4j:
+    image: neo4j:5.20-community
+    container_name: incident_neo4j
+    environment:
+      - NEO4J_AUTH=neo4j/incidentpassword123
+      - NEO4J_PLUGINS=["apoc"]
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    volumes:
+      - neo4j_data:/data
+      - ./backend/data:/var/lib/neo4j/import
+
+  backend:
+    build: ./backend
+    container_name: incident_backend
+    env_file: .env
+    ports:
+      - "8000:8000"
+    depends_on:
+      - neo4j
+    volumes:
+      - ./backend:/app
+
+  # TODO: Uncomment when frontend is ready
+  # frontend:
+  #   build: ./frontend
+  #   container_name: incident_frontend
+  #   ports:
+  #     - "3000:3000"
+  #   depends_on:
+  #     - backend
+
+volumes:
+  neo4j_data:

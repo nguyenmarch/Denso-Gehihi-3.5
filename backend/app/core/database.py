@@ -1,0 +1,33 @@
+from neo4j import AsyncGraphDatabase, AsyncDriver
+from app.core.config import settings
+
+class Neo4jConnector:
+    def __init__(self):
+        self.driver: AsyncDriver | None = None
+
+    async def connect(self) -> AsyncDriver:
+        if self.driver is None:
+            self.driver = AsyncGraphDatabase.driver(
+                settings.NEO4J_URI,
+                auth=(settings.NEO4J_USER, settings.NEO4J_PASSWORD),
+            )
+        return self.driver
+
+    async def verify_connectivity(self) -> bool:
+        if self.driver is None:
+            await self.connect()
+        try:
+            await self.driver.verify_connectivity()
+            return True
+        except Exception:
+            return False
+
+    async def close(self):
+        if self.driver:
+            await self.driver.close()
+            self.driver = None
+
+db_pool = Neo4jConnector()
+
+async def get_db_driver() -> AsyncDriver:
+    return await db_pool.connect()
