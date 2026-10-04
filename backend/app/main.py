@@ -1,10 +1,20 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.events import startup_handler, shutdown_handler
 from app.api.v1.router import api_router
 from app.core.config import settings
 
-app = FastAPI(title="Production Incident Propagation Engine")
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    await startup_handler()
+    try:
+        yield
+    finally:
+        await shutdown_handler()
+
+
+app = FastAPI(title="Production Incident Propagation Engine", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -13,9 +23,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-app.add_event_handler("startup", startup_handler)
-app.add_event_handler("shutdown", shutdown_handler)
 
 # Register API routes
 app.include_router(api_router, prefix="/api/v1")
