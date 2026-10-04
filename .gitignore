@@ -1,4 +1,28 @@
+# Local environment files
+.env
+*.env
+backend/.env
+
+# Kubernetes secrets with real values
+deploy/k8s/02-secrets.yaml
+
+# Generated AWS deploy config
+deploy/scripts/windows/.aws_config.ps1
+deploy/scripts/linux/.aws_config
+
+# Python/cache/build output
 __pycache__/
 *.py[cod]
-frontend/node_modules/
-frontend/dist/
+.pytest_cache/
+.mypy_cache/
+
+# Node/build output
+node_modules/
+dist/
+build/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
