@@ -1,3 +1,10 @@
+"""
+TODO (handoff - A: Incident schema & contract)
+- Validate `node_id`, `incident_type`, and `severity` per API contract
+- Ensure response model is stable for frontend (no raw DB objects)
+- Add tests for invalid nodes and invalid incident types
+"""
+
 from pydantic import BaseModel, Field
 from typing import List, Dict, Literal
 from pydantic import field_validator

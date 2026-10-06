@@ -1,3 +1,10 @@
+/*
+TODO (handoff - C: GraphCanvas)
+- Ensure `fetchTopology()` uses real API and response shape matches `GraphTopology`
+- Confirm cytoscape mapping for node `category` and `properties.name`
+- Highlight impacted nodes from simulation results
+*/
+
 import React, { useEffect, useRef } from 'react';
 import cytoscape, { Core } from 'cytoscape';
 import { fetchTopology } from '../services/api';

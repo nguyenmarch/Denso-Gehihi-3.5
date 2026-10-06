@@ -1,3 +1,10 @@
+/*
+TODO (handoff - C: IncidentTrigger)
+- Wire controls to trigger real simulations via `onRunSimulation`
+- Validate selected node/incident before calling backend
+- Provide example inputs used in demo and document expected response
+*/
+
 import React, { useState } from 'react';
 import { ArrowRight, Flame, Gauge, PackageSearch } from 'lucide-react';
 

@@ -1,3 +1,10 @@
+/*
+TODO (handoff - C: Frontend integration)
+- Use real `/graph/topology` data and render via `GraphCanvas` (no fake topology)
+- Ensure simulation flow calls `/incidents/simulate` and displays `SimulationResult`
+- Handle loading, backend errors, and empty states for demo
+*/
+
 import React, { useCallback, useState } from 'react';
 import { Activity, AlertTriangle, Boxes, BrainCircuit, CheckCircle2, ChevronRight, Factory, Gauge, ShieldCheck, Wifi } from 'lucide-react';
 import { IncidentTrigger } from './components/IncidentTrigger';

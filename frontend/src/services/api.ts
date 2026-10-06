@@ -1,3 +1,9 @@
+/*
+TODO (handoff - C: Frontend API)
+- Confirm `API_BASE` matches backend host/port used in deployment/demo
+- Add example request/response and error handling for UI integration
+*/
+
 import axios from 'axios';
 import { GraphTopology, IncidentType, SimulationResult } from '../types';
 

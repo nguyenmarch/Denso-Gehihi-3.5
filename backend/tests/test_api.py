@@ -1,3 +1,10 @@
+"""
+TODO (handoff - A/B: API tests)
+- Add tests for `/incidents/simulate` success and error flows
+- Test invalid incident types and node-not-found responses
+- Add tests ensuring API response shape matches `SimulationResponse`
+"""
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 from app.main import app

@@ -1,3 +1,9 @@
+/*
+TODO (handoff - C: Frontend types)
+- Keep `IncidentType` in sync with backend schema
+- Ensure `ImpactedNode` matches backend `ImpactedNodeDTO` fields exactly
+*/
+
 export type IncidentType = 'MACHINE_BREAKDOWN' | 'MATERIAL_DEFECT' | 'CYCLE_TIME_SPIKE';
 export interface ImpactedNode {
   node_id: string;

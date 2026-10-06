@@ -1,3 +1,10 @@
+"""
+TODO (handoff - B: Neo4j connectivity & migrations)
+- Add migrations/seed helpers under `backend/data/` and document usage
+- Ensure connector exposes health/verify methods and handles unavailable DB
+- Document idempotent seed process (no duplicates on rerun)
+"""
+
 from neo4j import AsyncGraphDatabase, AsyncDriver
 from app.core.config import settings
 

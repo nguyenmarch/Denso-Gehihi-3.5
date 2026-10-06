@@ -1,3 +1,10 @@
+"""
+TODO (handoff - A: Incidents API)
+- Ensure `POST /incidents/simulate` validates input and returns stable `SimulationResponse`
+- Do not leak raw Neo4j objects; use DTOs from schemas
+- Document example request/response for frontend integration
+"""
+
 from fastapi import APIRouter, Depends
 from neo4j import AsyncDriver
 from app.core.database import get_db_driver

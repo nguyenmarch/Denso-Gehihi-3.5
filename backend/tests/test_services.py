@@ -1,3 +1,10 @@
+"""
+TODO (handoff - A: Propagation tests)
+- Add tests for distances 1,2,3 and for exceeding MAX_HOPS
+- Test different severities and missing node behavior
+- Add API-level simulation tests in `test_api.py` to cover contract
+"""
+
 import asyncio
 from app.models.playbooks import DEFAULT_ACTION_RULES
 from app.services.recommendation_service import RecommendationService

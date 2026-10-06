@@ -1,3 +1,11 @@
+"""
+TODO (handoff - A: Propagation logic)
+- Verify formula: impact_score = severity × DECAY_RATE ** distance
+- Ensure `MAX_HOPS` is enforced and configurable via settings
+- Return stable DTOs (no raw Neo4j objects)
+- Add unit tests: distances 1,2,3; different severities; exceed max hops; node missing
+"""
+
 from typing import List
 from neo4j import AsyncDriver
 from app.schemas.incident import ImpactedNodeDTO

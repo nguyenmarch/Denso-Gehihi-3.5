@@ -1,3 +1,10 @@
+"""
+TODO (handoff - B: Graph API)
+- Implement `/graph/topology` and `/graph/node/{node_id}` with stable DTOs
+- Ensure responses list nodes and edges with unique IDs and correct directions
+- Add error handling for Neo4j unavailable and malformed graph
+"""
+
 from fastapi import APIRouter, Depends
 from neo4j import AsyncDriver
 from app.core.database import get_db_driver

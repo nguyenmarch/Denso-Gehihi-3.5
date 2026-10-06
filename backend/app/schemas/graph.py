@@ -1,3 +1,9 @@
+"""
+TODO (handoff - B: Graph schema)
+- Ensure `GraphTopologyResponse` and DTOs map cleanly to frontend cytoscape data
+- Confirm node `id` uniqueness and properties required by the UI (e.g., `name`)
+"""
+
 from pydantic import BaseModel
 from typing import List, Dict, Any
 

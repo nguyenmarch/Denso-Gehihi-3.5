@@ -1,3 +1,10 @@
+/*
+TODO (handoff - C: ActionMatrix)
+- Render department actions from `SimulationResult.actions_by_department`
+- Ensure `CONTEXT` entries are used in cards where relevant
+- Allow marking steps complete for demo purposes
+*/
+
 import React from 'react';
 import { Check, Circle } from 'lucide-react';
 
