@@ -34,3 +34,5 @@ backend/data/*
 !backend/data/migrations/
 !backend/data/*.cypher
 !backend/data/**/*.cypher
+# Local app data (SQLite from other tools)
+.data/
