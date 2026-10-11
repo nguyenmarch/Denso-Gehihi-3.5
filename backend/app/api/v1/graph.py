@@ -1,39 +1,52 @@
-"""
-TODO (handoff - B: Graph API)
-- Implement `/graph/topology` and `/graph/node/{node_id}` with stable DTOs
-- Ensure responses list nodes and edges with unique IDs and correct directions
-- Add error handling for Neo4j unavailable and malformed graph
-"""
-
-from fastapi import APIRouter, Depends
+"""Complete topology and expert inspection; errors never expose database internals."""
+from fastapi import APIRouter, Depends, HTTPException, Header
 from neo4j import AsyncDriver
 from app.core.database import get_db_driver
 from app.schemas.graph import GraphTopologyResponse, GraphNodeDTO, GraphEdgeDTO
-from fastapi import HTTPException
 
 router = APIRouter()
 
-@router.get("/topology", response_model=GraphTopologyResponse)
+
+async def graph_role(x_demo_role: str = Header(default='expert')):
+    if x_demo_role == 'technician':
+        raise HTTPException(403, detail='Raw topology chỉ dành cho màn hình expert/operator demo.')
+
+
+@router.get('/topology', response_model=GraphTopologyResponse, dependencies=[Depends(graph_role)])
 async def get_full_topology(driver: AsyncDriver = Depends(get_db_driver)):
-    query = "MATCH (n) OPTIONAL MATCH (n)-[r]->(m) RETURN collect(DISTINCT n) AS nodes, collect(DISTINCT r) AS edges"
-    async with driver.session() as session:
-        record = await (await session.run(query)).single()
+    query = 'MATCH (n) OPTIONAL MATCH (n)-[r]->(m) RETURN collect(DISTINCT n) AS nodes, collect(DISTINCT r) AS edges'
+    try:
+        async with driver.session() as session:
+            record = await (await session.run(query)).single()
+    except Exception:
+        raise HTTPException(503, detail={'code': 'graph_store_unavailable', 'message': 'Graph store không sẵn sàng. Hãy thử lại.'}) from None
     if not record:
         return GraphTopologyResponse(nodes=[], edges=[])
-    nodes = [GraphNodeDTO(id=n.get("id"), label=(n.labels and list(n.labels)[0]) or "Unknown", properties=dict(n)) for n in record["nodes"] if n.get("id")]
-    edges = [GraphEdgeDTO(source=r.start_node.get("id"), target=r.end_node.get("id"), type=r.type) for r in record["edges"] if r.start_node.get("id") and r.end_node.get("id")]
-    return GraphTopologyResponse(nodes=nodes, edges=edges)
+    try:
+        nodes = [GraphNodeDTO(id=n['id'], label=sorted(n.labels)[0] if n.labels else 'Unknown', properties=dict(n)) for n in record['nodes']]
+        edges = [GraphEdgeDTO(id=r.element_id, source=r.start_node['id'], target=r.end_node['id'], type=r.type) for r in record['edges']]
+        identifiers = {n.id for n in nodes}
+        if len(identifiers) != len(nodes) or any(e.source not in identifiers or e.target not in identifiers for e in edges):
+            raise ValueError('invalid graph')
+        return GraphTopologyResponse(nodes=nodes, edges=edges)
+    except (ValueError, TypeError, KeyError, AttributeError, IndexError):
+        raise HTTPException(502, detail={'code': 'invalid_topology', 'message': 'Topology không hợp lệ; không thể hiển thị đầy đủ dữ liệu.'}) from None
 
-@router.get("/node/{node_id}")
+
+@router.get('/node/{node_id}', dependencies=[Depends(graph_role)])
 async def get_node_details(node_id: str, driver: AsyncDriver = Depends(get_db_driver)):
-    query = """
+    query = '''
     MATCH (n {id: $node_id})
     OPTIONAL MATCH (n)-[r]-(neighbor)
     RETURN n, collect({type: type(r), direction: CASE WHEN startNode(r)=n THEN 'out' ELSE 'in' END, node: neighbor}) AS relations
-    """
-    async with driver.session() as session:
-        record = await (await session.run(query, node_id=node_id)).single()
+    '''
+    try:
+        async with driver.session() as session:
+            record = await (await session.run(query, node_id=node_id)).single()
+    except Exception:
+        raise HTTPException(503, detail={'code': 'graph_store_unavailable', 'message': 'Graph store không sẵn sàng. Hãy thử lại.'}) from None
     if not record:
-        raise HTTPException(status_code=404, detail="Node not found")
-    node = record["n"]
-    return {"id": node.get("id"), "label": list(node.labels)[0] if node.labels else "Unknown", "properties": dict(node), "relations": [{**rel, "node": dict(rel["node"]), "labels": list(rel["node"].labels)} for rel in record["relations"] if rel["node"]]}
+        raise HTTPException(404, detail='Node not found')
+    node = record['n']
+    return {'id': node.get('id'), 'label': sorted(node.labels)[0] if node.labels else 'Unknown', 'properties': dict(node),
+            'relations': [{**rel, 'node': dict(rel['node']), 'labels': sorted(rel['node'].labels)} for rel in record['relations'] if rel['node']]}

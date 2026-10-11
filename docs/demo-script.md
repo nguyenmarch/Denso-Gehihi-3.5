@@ -1,4 +1,6 @@
-# Demo script (≤ 5 phút)
+# Demo script propagation cũ (≤ 5 phút)
+
+Luồng Incident Navigator mới 8–10 phút: xem [demo-handoff-implementation.md](demo-handoff-implementation.md).
 
 Luồng: **topology → simulation → impact + action matrix → empty/error state**. Mọi số liệu trên UI lấy từ API thật (`/graph/topology`, `/incidents/simulate`, `/health`); không có dữ liệu giả.
 

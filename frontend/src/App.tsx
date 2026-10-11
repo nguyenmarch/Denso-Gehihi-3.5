@@ -7,6 +7,10 @@ import { ImpactTable } from './components/ImpactTable';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { API_BASE, fetchHealth, fetchTopology, toApiError, triggerSimulation } from './services/api';
 import { ApiErrorInfo, GraphTopology, HealthStatus, IncidentType, SimulationResult } from './types';
+import { LiveStatus } from './components/LiveStatus';
+import { WorkFlow } from './components/WorkFlow';
+import { ExpertInspector } from './components/ExpertInspector';
+import { DemoRole } from './services/api';
 import './app.css';
 
 type Remote<T> = { status: 'loading' } | { status: 'ready'; data: T } | { status: 'error'; error: ApiErrorInfo };
@@ -33,6 +37,7 @@ export const App: React.FC = () => {
   const [selectedNodeId, setSelectedNodeId] = useState('');
   const [runs, setRuns] = useState<SimulationRun[]>([]);
   const [simLoading, setSimLoading] = useState(false);
+  const [demoRole, setDemoRole] = useState<DemoRole>('operator');
 
   const loadTopology = useCallback(async () => {
     setTopology({ status: 'loading' });
@@ -120,7 +125,7 @@ export const App: React.FC = () => {
       <main className="main-content" id="top">
         <header className="topbar">
           <div><p className="eyebrow">{new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }).toUpperCase()}</p><h1>Incident command center <span>✦</span></h1><p className="subheading">Trace how a disruption propagates through the production chain graph.</p></div>
-          <div className="top-actions"><div className={`live-pill ${statusTone}`}><span className="live-dot" /> {statusTone === 'good' ? 'API CONNECTED' : statusTone === 'bad' ? 'API DEGRADED' : 'CONNECTING'}</div></div>
+          <div className="top-actions"><LiveStatus /></div>
         </header>
 
         {(backendDown || dbDown) && (
@@ -130,6 +135,8 @@ export const App: React.FC = () => {
           </div>
         )}
 
+        <WorkFlow nodes={nodes} nodeId={selectedNodeId} onRoleChange={setDemoRole} onSimulation={result => setRuns(prev => [{ id: Date.now(), at: new Date(), nodeId: result.origin_id, type: result.incident_type, severity: 1, result }, ...prev].slice(0, 8))} />
+        {demoRole !== 'technician' && <>
         <section className="kpi-grid">
           <div className="kpi-card blue"><div className="kpi-icon"><Boxes size={19} /></div><span>GRAPH NODES</span><strong>{stats ? graph!.nodes.length : '—'}</strong><small>{stats ? `${stats.byLabel.ProcessStep ?? 0} process · ${stats.byLabel.Equipment ?? 0} equipment · ${stats.byLabel.Batch ?? 0} batch` : 'Topology not loaded'}</small></div>
           <div className="kpi-card"><div className="kpi-icon violet"><GitBranch size={19} /></div><span>RELATIONS</span><strong>{stats ? graph!.edges.length : '—'}</strong><small>{stats ? <><b>{stats.propagationEdges}</b> propagation paths</> : 'Topology not loaded'}</small></div>
@@ -141,7 +148,7 @@ export const App: React.FC = () => {
           <div className="panel graph-panel" id="topology">
             <div className="panel-heading">
               <div><div className="heading-row"><h2>Propagation topology</h2><span className="tag blue-tag">NEO4J</span></div><p>Click a node to use it as the incident origin.</p></div>
-              <div className="graph-legend"><span><i className="legend-dot process" />Process</span><span><i className="legend-dot equipment" />Equipment</span><span><i className="legend-dot batch" />Batch</span><span><i className="legend-dot department" />Dept</span><span><i className="legend-dot incident" />Event</span><span><i className="legend-dot impacted" />Impacted</span></div>
+              <div className="graph-legend"><span><i className="legend-dot process" />Process</span><span><i className="legend-dot equipment" />Equipment</span><span><i className="legend-dot batch" />Batch</span><span><i className="legend-dot department" />Dept</span><span><i className="legend-dot incident" />Event</span><span><i className="legend-dot impacted" />Impacted</span><span><i className="legend-dot fault" />Fault</span><span><i className="legend-dot part" />Part</span><span><i className="legend-dot document" />Document</span></div>
             </div>
             <div className="graph-wrap">
               {topology.status === 'loading' && <div className="state-box"><LoaderCircle size={22} className="spin" /><strong>Loading topology…</strong><p>GET /graph/topology</p></div>}
@@ -200,6 +207,8 @@ export const App: React.FC = () => {
             </ErrorBoundary>
           </section>
         )}
+        {demoRole === 'expert' && <ExpertInspector nodeId={selectedNodeId} />}
+        </>}
       </main>
     </div>
   );

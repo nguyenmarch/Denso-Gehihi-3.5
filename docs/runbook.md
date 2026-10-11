@@ -1,5 +1,7 @@
 # Runbook chạy dự án
 
+Luồng Incident Navigator handoff mới: xem [demo-handoff-implementation.md](demo-handoff-implementation.md), dùng `npm run setup` và `npm run dev` tại repository root để đọc đúng `.env` local.
+
 ## Cách 1: Docker
 
 Yêu cầu: Docker và Docker Compose.

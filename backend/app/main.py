@@ -31,4 +31,10 @@ app.include_router(api_router, prefix="/api/v1")
 async def health_check():
     from app.core.database import db_pool
     connected = await db_pool.verify_connectivity()
-    return {"status": "ok" if connected else "degraded", "database": "connected" if connected else "unavailable"}
+    return {"status": "ok" if connected else "degraded", "database": "connected" if connected else "unavailable",
+            "capabilities": {"synthetic_ingestion": "enabled", "optional_ai": "enabled" if settings.INAV_AI_MODE == "gemini" else "disabled",
+                             "external_factory_integration": "disabled", "control_write": "disabled"},
+            "dependencies": {"ai": {"mode": settings.INAV_AI_MODE,
+                                     "configured": bool(settings.INAV_GEMINI_API_KEY.get_secret_value()),
+                                     "policy": settings.INAV_DATA_POLICY},
+                             "plant_simulation": "running"}}

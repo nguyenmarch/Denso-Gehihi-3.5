@@ -36,3 +36,6 @@ backend/data/*
 !backend/data/**/*.cypher
 # Local app data (SQLite from other tools)
 .data/
+.venv/
+.env.*
+!.env.example

@@ -169,3 +169,14 @@ async def test_simulation_rejects_invalid_payloads_before_database_access():
     assert invalid_type_value.status_code == 422
     assert invalid_severity.status_code == 422
     assert invalid_node.status_code == 422
+
+@pytest.mark.asyncio
+async def test_loopback_frontend_cors_preflight():
+    async with AsyncClient(transport=ASGITransport(app=app), base_url='http://test') as client:
+        response = await client.options('/api/v1/incidents', headers={
+            'Origin': 'http://127.0.0.1:5173',
+            'Access-Control-Request-Method': 'GET',
+            'Access-Control-Request-Headers': 'x-demo-role',
+        })
+    assert response.status_code == 200
+    assert response.headers['access-control-allow-origin'] == 'http://127.0.0.1:5173'

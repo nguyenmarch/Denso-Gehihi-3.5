@@ -112,3 +112,62 @@ GET /recommendations/{incident_type}
 - Request không hợp lệ trả lỗi validation của FastAPI.
 - Node không tồn tại trả `404` ở endpoint chi tiết node.
 - Lỗi Neo4j cần hiển thị thành trạng thái degraded, không được giả vờ trả kết quả thật.
+
+## Incident Navigator local demo
+
+Các endpoint dưới đây dùng `X-Demo-Role: operator | technician | expert | admin` để chọn chế độ trình diễn, không phải hệ thống authentication. Mặc định technician. Raw graph từ chối header technician; các API graph cũ vẫn dùng mặc định expert để giữ compatibility.
+
+| Method | Endpoint | Vai trò / contract |
+|---|---|---|
+| GET | `/api/v1/incidents` | Danh sách work orders được lọc theo vai trò |
+| POST | `/api/v1/incidents/fault` | Operator/admin; body giống simulation; incident server tạo có origin synthetic |
+| GET | `/api/v1/incidents/{id}` | Work order; technician không nhận `node_id`/`simulation` |
+| POST | `/api/v1/incidents/{id}/dispatch` | Operator/admin; `{assignee?: string}`; alert → dispatched |
+| POST | `/api/v1/incidents/{id}/start` | Technician/admin; `{}`; dispatched → in_progress |
+| POST | `/api/v1/incidents/{id}/resolve` | Technician/admin; `{report: string}` bắt buộc; in_progress → resolved |
+| POST | `/api/v1/incidents/{id}/guidance/explain` | Technician/expert/admin; đã dispatch; deterministic guidance + optional Gemini narrative |
+| GET | `/api/v1/demo/audit` | Expert/admin; model, latency_ms, mode, failure_category |
+| GET/POST | `/api/v1/demo/learning` | Expert/admin; POST `{incident_id,node_id,note}` cần sự cố đã resolved và node tồn tại |
+| GET | `/api/v1/events` | SSE `plant_tick`: `{at,origin:"synthetic"}`; heartbeat của dịch vụ demo |
+
+Fault/dispatch/start/resolve bắt buộc `Idempotency-Key` dài 8–128 ký tự. Retry cùng key/cùng payload trả snapshot response đã lưu; dùng key với payload/path/role khác trả 409. Chuyển state không hợp lệ trả 409; báo cáo trống trả 422. Annotation chỉ do expert nhập và không tự sửa topology/rule.
+
+Guidance response:
+
+```json
+{
+  "mode": "llm",
+  "model": "gemini-3.5-flash",
+  "narrative": {
+    "summary": "Hướng dẫn cần người phụ trách xem xét.",
+    "citations": ["e1"],
+    "steps": {"s1": {"text": "Diễn đạt của bước trong playbook.", "citations": ["s1"]}}
+  },
+  "steps": [{"id": "s1", "text": "Bước deterministic trong playbook."}],
+  "evidence": [{"label": "Sự cố được tạo bởi mô phỏng synthetic", "source": "machine_event"}],
+  "failure_category": null,
+  "failure_reason": null,
+  "safety": "Gemini diễn đạt lại hướng dẫn. Containment là đề xuất. Quyết định cuối cùng thuộc người phụ trách."
+}
+```
+
+Fallback trả `mode=knowledge`, `narrative=null`, giữ nguyên `steps` và kèm taxonomy failure ổn định/lý do tiếng Việt. Không trả provider dumps, stack trace hoặc key. Citation chỉ là alias `s1`, `e1`, không phải graph ID.
+
+`GET /health` giữ nguyên `status`/`database` và thêm:
+
+```json
+{
+  "capabilities": {
+    "synthetic_ingestion": "enabled",
+    "optional_ai": "enabled",
+    "external_factory_integration": "disabled",
+    "control_write": "disabled"
+  },
+  "dependencies": {
+    "ai": {"mode": "gemini", "configured": true, "policy": "external_approved_synthetic"},
+    "plant_simulation": "running"
+  }
+}
+```
+
+`configured` chỉ xác nhận có key local, không xác nhận provider reachable. Health không gọi Gemini. `plant_simulation` là khả năng phục vụ heartbeat synthetic khi API đang chạy.

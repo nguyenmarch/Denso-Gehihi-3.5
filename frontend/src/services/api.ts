@@ -6,7 +6,9 @@ import { ApiErrorInfo, GraphTopology, HealthStatus, IncidentType, SimulationRequ
 export const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? 'http://localhost:8000/api/v1';
 const HEALTH_URL = API_BASE.replace(/\/api\/v1\/?$/, '') + '/health';
 
-const http = axios.create({ baseURL: API_BASE, timeout: 15000 });
+const REQUEST_TIMEOUT = Number(import.meta.env.VITE_REQUEST_TIMEOUT_MS) || 15000;
+const http = axios.create({ baseURL: API_BASE, timeout: REQUEST_TIMEOUT });
+const EXPLAIN_TIMEOUT = Number(import.meta.env.VITE_EXPLAIN_TIMEOUT_MS) || 65000;
 
 export class ApiError extends Error implements ApiErrorInfo {
   kind: ApiErrorInfo['kind'];
@@ -42,6 +44,7 @@ export const toApiError = (err: unknown): ApiError => {
 
   // No response: backend down, wrong host, CORS rejected, or an unhandled 500 (Starlette sends it without CORS headers).
   if (!axiosErr.response) {
+    if (axiosErr.code === 'ECONNABORTED' || axiosErr.code === 'ETIMEDOUT') return new ApiError({ kind: 'network', code: 'timeout', message: 'Yêu cầu quá thời gian chờ. Hãy thử lại; thao tác sẽ giữ mã chống trùng.' });
     return new ApiError({ kind: 'network', message: `Không kết nối được backend tại ${API_BASE}. Kiểm tra backend (port 8000) và Neo4j.` });
   }
 
@@ -93,3 +96,38 @@ export const fetchHealth = async (): Promise<HealthStatus> => {
     throw toApiError(err);
   }
 };
+
+export type DemoRole = 'operator' | 'technician' | 'expert' | 'admin';
+export interface WorkOrder {
+  id: string; origin: 'synthetic'; incident_type: IncidentType;
+  state: 'alert' | 'dispatched' | 'in_progress' | 'resolved';
+  created_at: string; assignee?: string; report?: string; node_id?: string;
+  simulation?: SimulationResult;
+  steps: { id: string; text: string }[];
+  containment: { status: 'proposal'; human_review_required: true; text: string };
+  history: { state: string; at: string }[];
+}
+export interface Guidance {
+  mode: 'llm' | 'knowledge'; model: string; failure_category?: string; failure_reason?: string;
+  narrative?: { summary: string; citations: string[]; steps: Record<string, { text: string; citations: string[] }> };
+  steps: { id: string; text: string }[];
+  evidence: { label: string; source: string }[]; safety: string;
+}
+export interface Learning { id: string; incident_id: string; node_id: string; note: string; at: string; }
+const headers = (role: DemoRole) => ({ 'X-Demo-Role': role });
+export const listWorkOrders = async (role: DemoRole): Promise<WorkOrder[]> => (await http.get('/incidents', { headers: headers(role) })).data;
+export const explainGuidance = async (id: string, role: DemoRole): Promise<Guidance> =>
+  (await http.post(`/incidents/${id}/guidance/explain`, {}, { headers: headers(role), timeout: EXPLAIN_TIMEOUT })).data;
+// Keep the exact key after an ambiguous timeout/network failure, including a reload.
+export const demoCommand = async (path: string, body: object, role: DemoRole): Promise<WorkOrder> => {
+  const slot = 'inav-command:' + JSON.stringify([path, body, role]);
+  const key = sessionStorage.getItem(slot) ?? crypto.randomUUID();
+  sessionStorage.setItem(slot, key);
+  const { data } = await http.post(path, body, { headers: { ...headers(role), 'Idempotency-Key': key } });
+  sessionStorage.removeItem(slot);
+  return data;
+};
+export const fetchNodeDetails = async (id: string) => (await http.get(`/graph/node/${encodeURIComponent(id)}`)).data;
+export const listLearning = async (): Promise<Learning[]> => (await http.get('/demo/learning', { headers: headers('expert') })).data;
+export const saveLearning = async (body: { incident_id: string; node_id: string; note: string }) =>
+  (await http.post('/demo/learning', body, { headers: headers('expert') })).data;

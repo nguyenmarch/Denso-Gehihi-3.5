@@ -17,6 +17,7 @@ class GraphNodeDTO(BaseModel):
         return {"id": self.id, "label": self.label, **self.properties}
 
 class GraphEdgeDTO(BaseModel):
+    id: str | None = None
     source: str
     target: str
     type: str

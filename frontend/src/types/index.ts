@@ -32,7 +32,7 @@ export interface SimulationResult {
 
 // backend GraphNodeDTO / GraphEdgeDTO / GraphTopologyResponse
 export interface GraphNode { id: string; label: string; properties: Record<string, unknown>; }
-export interface GraphEdge { source: string; target: string; type: string; }
+export interface GraphEdge { id?: string; source: string; target: string; type: string; }
 export interface GraphTopology { nodes: GraphNode[]; edges: GraphEdge[]; }
 
 export interface HealthStatus { status: 'ok' | 'degraded'; database: 'connected' | 'unavailable'; }
