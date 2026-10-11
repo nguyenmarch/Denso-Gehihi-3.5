@@ -20,7 +20,7 @@ try {
     expect(response.ok()).toBeTruthy();
     const graph = await response.json();
     expect(graph.nodes.length).toBeGreaterThan(0);
-    await expect(page.getByRole('img', { name: `Production chain topology graph: ${graph.nodes.length} nodes, ${graph.edges.length} edges` })).toBeVisible();
+    await expect(page.getByRole('img', { name: `Graph chuỗi sản xuất: ${graph.nodes.length} node, ${graph.edges.length} quan hệ` })).toBeVisible();
   });
   await check('Live synthetic event visible', () => expect(page.locator('.connection-state .live-pill')).toHaveText('Live'));
   await page.screenshot({ path: `${shots}/01-topology.png`, fullPage: true });
@@ -36,7 +36,7 @@ try {
   const liveNarrative = await page.locator('.narrative').count();
   if (liveNarrative) await check('Live Gemini narrative label', () => expect(page.locator('.narrative')).toContainText('Diễn đạt bởi Gemini'));
   else await check('Real fallback is explicit', () => expect(page.locator('.fallback')).toContainText('Đang dùng hướng dẫn xác định từ knowledge base'));
-  await check('Technician screen hides raw graph', () => expect(page.getByRole('img', { name: /Production chain topology/ })).toHaveCount(0));
+  await check('Technician screen hides raw graph', () => expect(page.getByRole('img', { name: /Graph chuỗi sản xuất/ })).toHaveCount(0));
   await check('Containment remains a proposal', () => expect(page.locator('.containment')).toContainText('Cần người phụ trách xem xét'));
   await page.screenshot({ path: `${shots}/02-real-guidance.png`, fullPage: true });
   await page.getByRole('button', { name: 'Bắt đầu xử lý' }).click();

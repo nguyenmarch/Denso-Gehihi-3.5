@@ -1,26 +1,37 @@
 import { useEffect, useState } from 'react';
 import { API_BASE } from '../services/api';
 
+const RECONNECT_MS = 5000;
+
 export function LiveStatus() {
   const [state, setState] = useState<'connecting' | 'live' | 'retrying' | 'disconnected'>('connecting');
   const [last, setLast] = useState<number>();
   const [clock, setClock] = useState(Date.now());
   const staleMs = Number(import.meta.env.VITE_STALE_MS) || 10000;
   useEffect(() => {
-    let source: EventSource;
+    let source: EventSource | undefined;
+    let retryTimer: number | undefined;
     const connect = () => {
-      source = new EventSource(`${API_BASE}/events`);
-      source.onopen = () => setState('connecting');
-      source.addEventListener('plant_tick', () => { setLast(Date.now()); setState('live'); });
-      source.onerror = () => setState(source.readyState === EventSource.CLOSED ? 'disconnected' : 'retrying');
+      window.clearTimeout(retryTimer);
+      source?.close();
+      const current = new EventSource(`${API_BASE}/events`);
+      source = current;
+      current.onopen = () => setState('connecting');
+      current.addEventListener('plant_tick', () => { setLast(Date.now()); setState('live'); });
+      current.onerror = () => {
+        if (current.readyState !== EventSource.CLOSED) { setState('retrying'); return; }
+        setState('disconnected');
+        // The browser stops retrying after an HTTP error response (e.g. backend restarting behind a proxy).
+        if (navigator.onLine) retryTimer = window.setTimeout(() => { setState('retrying'); connect(); }, RECONNECT_MS);
+      };
     };
     connect();
     const tick = window.setInterval(() => setClock(Date.now()), 1000);
-    const offline = () => { source.close(); setState('disconnected'); };
-    const online = () => { source.close(); setState('retrying'); connect(); };
+    const offline = () => { window.clearTimeout(retryTimer); source?.close(); setState('disconnected'); };
+    const online = () => { setState('retrying'); connect(); };
     window.addEventListener('offline', offline);
     window.addEventListener('online', online);
-    return () => { source.close(); window.clearInterval(tick); window.removeEventListener('offline', offline); window.removeEventListener('online', online); };
+    return () => { window.clearTimeout(retryTimer); source?.close(); window.clearInterval(tick); window.removeEventListener('offline', offline); window.removeEventListener('online', online); };
   }, []);
   const stale = last !== undefined && clock - last > staleMs;
   const label = stale && state === 'live' ? 'Dữ liệu đã cũ' : ({ live: 'Live', connecting: 'Đang kết nối', retrying: 'Đang kết nối lại', disconnected: 'Mất kết nối' })[state];

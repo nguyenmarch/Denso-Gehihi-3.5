@@ -1,5 +1,6 @@
 """HTTP rehearsal against real Neo4j, with an isolated temporary workflow store."""
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -10,7 +11,20 @@ from uuid import uuid4
 import httpx
 from app.core.config import settings
 
-with tempfile.TemporaryDirectory(prefix='inav-demo-') as temp:
+
+def remove_store(path):
+    # On Windows the venv python.exe is a launcher; its server child can hold the SQLite file briefly after terminate().
+    for _ in range(20):
+        try:
+            shutil.rmtree(path)
+            return
+        except PermissionError:
+            time.sleep(.25)
+    shutil.rmtree(path)
+
+
+temp = tempfile.mkdtemp(prefix='inav-demo-')
+try:
     env = {**os.environ, 'PYTHONPATH': str(Path('backend').resolve()), 'INAV_STORE_PATH': str(Path(temp) / 'demo.sqlite')}
     server = subprocess.Popen([sys.executable, '-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', '8099'], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
@@ -57,3 +71,5 @@ with tempfile.TemporaryDirectory(prefix='inav-demo-') as temp:
         server.terminate()
         try: server.wait(timeout=5)
         except subprocess.TimeoutExpired: server.kill(); server.wait()
+finally:
+    remove_store(temp)

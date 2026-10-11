@@ -121,7 +121,7 @@ Các endpoint dưới đây dùng `X-Demo-Role: operator | technician | expert |
 |---|---|---|
 | GET | `/api/v1/incidents` | Danh sách work orders được lọc theo vai trò |
 | POST | `/api/v1/incidents/fault` | Operator/admin; body giống simulation; incident server tạo có origin synthetic |
-| GET | `/api/v1/incidents/{id}` | Work order; technician không nhận `node_id`/`simulation` |
+| GET | `/api/v1/incidents/{id}` | Work order; operator/expert/admin nhận `node_id`/`simulation` để đánh dấu node lỗi trên graph; technician không nhận |
 | POST | `/api/v1/incidents/{id}/dispatch` | Operator/admin; `{assignee?: string}`; alert → dispatched |
 | POST | `/api/v1/incidents/{id}/start` | Technician/admin; `{}`; dispatched → in_progress |
 | POST | `/api/v1/incidents/{id}/resolve` | Technician/admin; `{report: string}` bắt buộc; in_progress → resolved |

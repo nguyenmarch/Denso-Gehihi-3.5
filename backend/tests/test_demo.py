@@ -178,6 +178,8 @@ async def test_workflow_and_idempotency(store, monkeypatch, configured):
             payload = {'node_id': 'EQ_OVEN_01', 'incident_type': 'MACHINE_BREAKDOWN'}
             fault = await client.post('/api/v1/incidents/fault', json=payload, headers=operator)
             assert fault.status_code == 201
+            assert fault.json()['simulation']['origin_id'] == 'EQ_OVEN_01'
+            assert fault.json()['severity'] == 1.0
             ident = fault.json()['id']
             retry = await client.post('/api/v1/incidents/fault', json=payload, headers=operator)
             assert retry.json()['id'] == ident

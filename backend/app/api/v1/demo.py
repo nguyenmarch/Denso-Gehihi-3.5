@@ -41,7 +41,8 @@ def incident_or_404(store, ident):
 
 def public_incident(incident, role):
     result = {k: v for k, v in incident.items() if k not in ('simulation', 'node_id')}
-    if role in ('expert', 'admin'):
+    # Operator needs the impact to mark the faulting node on the plant graph; technician never sees graph IDs.
+    if role in ('operator', 'expert', 'admin'):
         result['simulation'] = incident['simulation']
         result['node_id'] = incident['node_id']
     return result
@@ -81,7 +82,7 @@ async def create_fault(payload: SimulationRequest, role=Depends(demo_role), key=
         steps = [{'id': f's{i+1}', 'text': re.sub(r'\b(?:EQ_|STEP_|DEP_|BATCH_)\w+', 'thiết bị trong playbook', text)}
                  for i, text in enumerate(actions.values())]
         incident = {'id': str(uuid4()), 'origin': 'synthetic', 'node_id': payload.node_id,
-                    'incident_type': payload.incident_type, 'state': 'alert', 'created_at': now(),
+                    'incident_type': payload.incident_type, 'severity': payload.severity, 'state': 'alert', 'created_at': now(),
                     'steps': steps, 'simulation': simulation.model_dump(),
                     'containment': {'status': 'proposal', 'human_review_required': True,
                                     'text': actions.get('DEP_QA', actions.get('DEP_PROD', ''))},

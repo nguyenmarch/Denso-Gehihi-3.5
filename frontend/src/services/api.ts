@@ -100,6 +100,8 @@ export const fetchHealth = async (): Promise<HealthStatus> => {
 export type DemoRole = 'operator' | 'technician' | 'expert' | 'admin';
 export interface WorkOrder {
   id: string; origin: 'synthetic'; incident_type: IncidentType;
+  // Absent on incidents stored before severity was recorded; those were all created with severity 1.0.
+  severity?: number;
   state: 'alert' | 'dispatched' | 'in_progress' | 'resolved';
   created_at: string; assignee?: string; report?: string; node_id?: string;
   simulation?: SimulationResult;

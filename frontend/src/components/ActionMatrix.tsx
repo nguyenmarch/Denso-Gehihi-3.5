@@ -18,8 +18,8 @@ export const ActionMatrix: React.FC<ActionMatrixProps> = ({ actions, departmentN
   return (
     <div className="actions-area">
       <div className="actions-heading">
-        <div><p className="eyebrow">RESPONSE MATRIX</p><h2>Recommended actions</h2><p>Playbook steps per department for this incident type.</p></div>
-        {entries.length > 0 && <span className="status-chip"><span className="status-dot" /> {doneCount}/{entries.length} complete</span>}
+        <div><p className="eyebrow">MA TRẬN PHẢN ỨNG</p><h2>Hành động đề xuất</h2><p>Các bước playbook theo bộ phận cho loại sự cố này.</p></div>
+        {entries.length > 0 && <span className="status-chip"><span className="status-dot" /> {doneCount}/{entries.length} hoàn thành</span>}
       </div>
       {context && <div className="context-note"><Info size={14} /><span>{context}</span></div>}
       {entries.length === 0
@@ -32,7 +32,7 @@ export const ActionMatrix: React.FC<ActionMatrixProps> = ({ actions, departmentN
                 <article key={dept} className={`action-card ${completed[dept] ? 'done' : ''}`}>
                   <div className="action-card-top"><span className="dept-avatar">{short.slice(0, 2)}</span><div><strong>{departmentNames[dept] ?? short}</strong><small>{dept}</small></div></div>
                   <p>{action}</p>
-                  <label className="complete-check"><input type="checkbox" checked={!!completed[dept]} onChange={e => setCompleted({ ...completed, [dept]: e.target.checked })} />{completed[dept] ? <Check size={14} /> : <Circle size={14} />} {completed[dept] ? 'Marked complete' : 'Mark as complete'}</label>
+                  <label className="complete-check"><input type="checkbox" checked={!!completed[dept]} onChange={e => setCompleted({ ...completed, [dept]: e.target.checked })} />{completed[dept] ? <Check size={14} /> : <Circle size={14} />} {completed[dept] ? 'Đã hoàn thành' : 'Đánh dấu hoàn thành'}</label>
                 </article>
               );
             })}
