@@ -14,6 +14,7 @@ export class ApiError extends Error implements ApiErrorInfo {
   kind: ApiErrorInfo['kind'];
   status?: number;
   code?: string;
+  fields?: Record<string, string>;
 
   constructor(info: ApiErrorInfo) {
     super(info.message);
@@ -21,20 +22,22 @@ export class ApiError extends Error implements ApiErrorInfo {
     this.kind = info.kind;
     this.status = info.status;
     this.code = info.code;
+    this.fields = info.fields;
   }
 }
 
-type FastApiDetail = string | { code?: string; message?: string } | Array<{ loc?: unknown[]; msg?: string }>;
+type FastApiDetail = string | { code?: string; message?: string; fields?: Record<string, string> } | Array<{ loc?: unknown[]; msg?: string }>;
 
-// FastAPI returns `detail` as a string, as {code, message} (our HTTPExceptions) or as a list (422 validation).
-const describeDetail = (detail: FastApiDetail | undefined): { code?: string; message?: string } => {
+// FastAPI returns `detail` as a string, as {code, message, fields?} (our HTTPExceptions) or as a list (422 schema validation).
+const describeDetail = (detail: FastApiDetail | undefined): { code?: string; message?: string; fields?: Record<string, string> } => {
   if (!detail) return {};
   if (typeof detail === 'string') return { message: detail };
   if (Array.isArray(detail)) {
     const message = detail.map(d => `${(d.loc ?? []).filter(p => p !== 'body').join('.')}: ${d.msg}`).join('; ');
-    return { code: 'validation_error', message };
+    const fields = Object.fromEntries(detail.map(d => [String((d.loc ?? []).filter(p => p !== 'body')[0] ?? ''), d.msg ?? '']));
+    return { code: 'validation_error', message, fields };
   }
-  return { code: detail.code, message: detail.message };
+  return { code: detail.code, message: detail.message, fields: detail.fields };
 };
 
 export const toApiError = (err: unknown): ApiError => {
@@ -49,8 +52,8 @@ export const toApiError = (err: unknown): ApiError => {
   }
 
   const { status, data } = axiosErr.response;
-  const { code, message } = describeDetail(data?.detail);
-  if (status === 422) return new ApiError({ kind: 'validation', status, code, message: `Dữ liệu không hợp lệ: ${message ?? 'request bị từ chối'}` });
+  const { code, message, fields } = describeDetail(data?.detail);
+  if (status === 422) return new ApiError({ kind: 'validation', status, code, fields, message: `Dữ liệu không hợp lệ: ${message ?? 'request bị từ chối'}` });
   if (status === 404) return new ApiError({ kind: 'not_found', status, code, message: message ?? 'Không tìm thấy node trong graph.' });
   if (status === 503) return new ApiError({ kind: 'unavailable', status, code, message: message ?? 'Graph store (Neo4j) không sẵn sàng.' });
   return new ApiError({ kind: 'server', status, code, message: message ?? `Backend lỗi (HTTP ${status}).` });
@@ -97,39 +100,83 @@ export const fetchHealth = async (): Promise<HealthStatus> => {
   }
 };
 
-export type DemoRole = 'operator' | 'technician' | 'expert' | 'admin';
-export interface WorkOrder {
-  id: string; origin: 'synthetic'; incident_type: IncidentType;
-  // Absent on incidents stored before severity was recorded; those were all created with severity 1.0.
-  severity?: number;
-  state: 'alert' | 'dispatched' | 'in_progress' | 'resolved';
-  created_at: string; assignee?: string; report?: string; node_id?: string;
+// Demo workflow contract: docs/api.md, "Contract dự kiến (PRE-02)".
+export type Role = 'operator' | 'technician' | 'expert';
+export interface Actor { id: string; name: string; role: Role; }
+export interface Asset { id: string; type: string; name: string; }
+export interface MachineEvent { id: string; at: string; label: string; }
+export type IncidentState = 'alert' | 'dispatched' | 'in_progress' | 'unresolved' | 'resolved';
+export interface HistoryEntry { at: string; actor_id: string; action: string; from: IncidentState | null; to: IncidentState; note: string | null; }
+export interface ReportRecord {
+  index: number; at: string; actor_id: string; outcome: 'fixed' | 'not_fixed'; summary: string; next_step: string;
+  checks: { text: string; result: string }[]; actions: string[]; open_items: string[];
+}
+export interface Incident {
+  id: string; origin: 'synthetic'; source: 'scenario' | 'fault'; scenario_id: string | null; event: MachineEvent | null;
+  asset: Asset; incident_type: IncidentType; severity: number; alarm_at: string; state: IncidentState;
+  created_at: string; created_by: string; assignee: { id: string; name: string } | null;
+  decision_note: string | null; next_step: string | null; reports: ReportRecord[]; history: HistoryEntry[];
+  // Operator/expert only: heuristic propagation used to mark the graph.
   simulation?: SimulationResult;
-  steps: { id: string; text: string }[];
-  containment: { status: 'proposal'; human_review_required: true; text: string };
-  history: { state: string; at: string }[];
 }
-export interface Guidance {
-  mode: 'llm' | 'knowledge'; model: string; failure_category?: string; failure_reason?: string;
-  narrative?: { summary: string; citations: string[]; steps: Record<string, { text: string; citations: string[] }> };
-  steps: { id: string; text: string }[];
-  evidence: { label: string; source: string }[]; safety: string;
+export interface Scenario { id: string; event: MachineEvent; asset: Asset; incident_type: IncidentType; severity: number; }
+export type ImpactCategory = 'affected' | 'unaffected' | 'unknown';
+export interface ImpactItem {
+  object_id: string; object_type: string; name: string; product_code: string | null; category: ImpactCategory;
+  reasons: { code: string; text: string; refs: string[] }[]; verification?: 'needs_verification'; next_check?: string; scope_note?: string;
 }
-export interface Learning { id: string; incident_id: string; node_id: string; note: string; at: string; }
-const headers = (role: DemoRole) => ({ 'X-Demo-Role': role });
-export const listWorkOrders = async (role: DemoRole): Promise<WorkOrder[]> => (await http.get('/incidents', { headers: headers(role) })).data;
-export const explainGuidance = async (id: string, role: DemoRole): Promise<Guidance> =>
-  (await http.post(`/incidents/${id}/guidance/explain`, {}, { headers: headers(role), timeout: EXPLAIN_TIMEOUT })).data;
-// Keep the exact key after an ambiguous timeout/network failure, including a reload.
-export const demoCommand = async (path: string, body: object, role: DemoRole): Promise<WorkOrder> => {
-  const slot = 'inav-command:' + JSON.stringify([path, body, role]);
+export interface Impact {
+  incident_id: string; rule: string; status: 'evaluated' | 'not_applicable'; message?: string;
+  window: { start: string | null; start_basis: string; end: string | null; end_basis: string } | null;
+  items: ImpactItem[];
+  propagation?: { basis: 'heuristic_hops'; impacted_nodes: SimulationResult['impacted_nodes'] };
+  upstream_candidates?: { basis: 'investigation_only'; nodes: { node_id: string; type: string; name: string; distance: number }[] };
+}
+export interface AcceptedLesson { id: string; text: string; source_incident_id: string; accepted_by: string; accepted_at: string; }
+export interface GuidanceView {
+  match: { asset_id: string; incident_type: IncidentType; source: string } | null;
+  steps: { id: string; text: string }[];
+  containment: { status: 'proposal'; human_review_required: true; text: string } | null;
+  lessons: AcceptedLesson[];
+  gap: { code: 'knowledge_gap'; message: string } | null;
+}
+interface LlmResult { mode: 'llm' | 'knowledge'; model: string; failure_category: string | null; failure_reason: string | null; safety: string; }
+export interface Explanation extends LlmResult {
+  narrative: { summary: string; citations: string[]; steps: Record<string, { text: string; citations: string[] }> } | null;
+  steps: { id: string; text: string }[]; evidence: { label: string; source: string }[];
+}
+export interface Answer extends LlmResult { answer: string | null; citations: { alias: string; label: string }[]; }
+export type LessonStatus = 'pending' | 'accepted' | 'rejected';
+export interface Lesson {
+  id: string; status: LessonStatus; text: string; original_text: string; created_at: string;
+  context: { asset_id: string; incident_type: IncidentType };
+  source: { incident_id: string; report_index: number; author_id: string };
+  review: { decision: 'accepted' | 'rejected'; by: string; at: string; reason: string | null } | null;
+}
+
+const as = (actor: Actor) => ({ headers: { 'X-Demo-Actor': actor.id } });
+const request = async <T,>(call: Promise<{ data: T }>): Promise<T> => {
+  try { return (await call).data; } catch (err) { throw toApiError(err); }
+};
+export const listActors = () => request<Actor[]>(http.get('/demo/actors'));
+export const listScenarios = (actor: Actor) => request<Scenario[]>(http.get('/scenarios', as(actor)));
+export const listIncidents = (actor: Actor) => request<Incident[]>(http.get('/incidents', as(actor)));
+export const getIncident = (id: string, actor: Actor) => request<Incident>(http.get(`/incidents/${id}`, as(actor)));
+export const getImpact = (id: string, actor: Actor) => request<Impact>(http.get(`/incidents/${id}/impact`, as(actor)));
+export const getGuidance = (id: string, actor: Actor) => request<GuidanceView>(http.get(`/incidents/${id}/guidance`, as(actor)));
+export const explainGuidance = (id: string, actor: Actor) =>
+  request<Explanation>(http.post(`/incidents/${id}/guidance/explain`, {}, { ...as(actor), timeout: EXPLAIN_TIMEOUT }));
+export const askAssistant = (id: string, question: string, actor: Actor) =>
+  request<Answer>(http.post(`/incidents/${id}/assistant/ask`, { question }, { ...as(actor), timeout: EXPLAIN_TIMEOUT }));
+export const listLessons = (actor: Actor) => request<Lesson[]>(http.get('/lessons', as(actor)));
+
+// Mutations keep the exact Idempotency-Key after an ambiguous timeout/network failure, including a reload.
+export const command = async <T,>(path: string, body: object, actor: Actor, method: 'post' | 'patch' = 'post'): Promise<T> => {
+  const slot = 'inav-command:' + JSON.stringify([method, path, body, actor.id]);
   const key = sessionStorage.getItem(slot) ?? crypto.randomUUID();
   sessionStorage.setItem(slot, key);
-  const { data } = await http.post(path, body, { headers: { ...headers(role), 'Idempotency-Key': key } });
+  const data = await request<T>(http.request({ method, url: path, data: body, headers: { 'X-Demo-Actor': actor.id, 'Idempotency-Key': key } }));
   sessionStorage.removeItem(slot);
   return data;
 };
-export const fetchNodeDetails = async (id: string) => (await http.get(`/graph/node/${encodeURIComponent(id)}`)).data;
-export const listLearning = async (): Promise<Learning[]> => (await http.get('/demo/learning', { headers: headers('expert') })).data;
-export const saveLearning = async (body: { incident_id: string; node_id: string; note: string }) =>
-  (await http.post('/demo/learning', body, { headers: headers('expert') })).data;
+export const fetchNodeDetails = (id: string) => request<Record<string, unknown>>(http.get(`/graph/node/${encodeURIComponent(id)}`));

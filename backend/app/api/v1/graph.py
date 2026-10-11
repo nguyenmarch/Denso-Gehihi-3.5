@@ -2,14 +2,17 @@
 from fastapi import APIRouter, Depends, HTTPException, Header
 from neo4j import AsyncDriver
 from app.core.database import get_db_driver
+from app.core.actors import lookup
 from app.schemas.graph import GraphTopologyResponse, GraphNodeDTO, GraphEdgeDTO
 
 router = APIRouter()
 
 
-async def graph_role(x_demo_role: str = Header(default='expert')):
-    if x_demo_role == 'technician':
-        raise HTTPException(403, detail='Raw topology chỉ dành cho màn hình expert/operator demo.')
+async def graph_role(x_demo_actor: str | None = Header(default=None)):
+    # Without an actor header the graph stays readable (preflight, older clients); technicians never get it.
+    actor = lookup(x_demo_actor)
+    if actor and actor['role'] == 'technician':
+        raise HTTPException(403, detail={'code': 'forbidden_role', 'message': 'Raw topology chỉ dành cho điều phối và chuyên gia.'})
 
 
 @router.get('/topology', response_model=GraphTopologyResponse, dependencies=[Depends(graph_role)])
@@ -46,7 +49,7 @@ async def get_node_details(node_id: str, driver: AsyncDriver = Depends(get_db_dr
     except Exception:
         raise HTTPException(503, detail={'code': 'graph_store_unavailable', 'message': 'Graph store không sẵn sàng. Hãy thử lại.'}) from None
     if not record:
-        raise HTTPException(404, detail='Node not found')
+        raise HTTPException(404, detail={'code': 'node_not_found', 'message': 'Không tìm thấy node.'})
     node = record['n']
     return {'id': node.get('id'), 'label': sorted(node.labels)[0] if node.labels else 'Unknown', 'properties': dict(node),
             'relations': [{**rel, 'node': dict(rel['node']), 'labels': sorted(rel['node'].labels)} for rel in record['relations'] if rel['node']]}

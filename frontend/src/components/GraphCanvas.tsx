@@ -18,13 +18,15 @@ const nodeName = (properties: Record<string, unknown>, fallback: string) =>
 
 const COL_GAP = 210;
 // Rows above/below the process line, keyed by node label.
-const ROW_Y: Record<string, number> = { IncidentEvent: -280, Batch: -140, ProcessStep: 0, Equipment: 140, Department: 290 };
+const ROW_Y: Record<string, number> = { IncidentEvent: -280, Batch: -140, ProcessStep: 0, Equipment: 140, MachineEvent: 215, ProfileCheck: 215, Department: 290 };
 // Which relation anchors a node to a process-step column.
 const ANCHOR_RELATION: Record<string, { type: string; dir: 'out' | 'in' }> = {
   Equipment: { type: 'OPERATES_IN', dir: 'out' },
   Batch: { type: 'PROCESSED_BY', dir: 'out' },
   IncidentEvent: { type: 'AFFECTS', dir: 'out' },
 };
+// Machine events and profile checks sit in the column of the equipment they belong to.
+const EQUIPMENT_RELATION: Record<string, string> = { MachineEvent: 'RAISED_BY', ProfileCheck: 'CHECKS' };
 
 // Deterministic production-line layout from the real topology: process steps left→right by `sequence`,
 // equipment/batches/events in the column of the step they attach to, departments and unknown nodes in rows below.
@@ -33,6 +35,7 @@ const computePositions = (topology: GraphTopology): Record<string, { x: number; 
     .filter(n => n.label === 'ProcessStep')
     .sort((a, b) => (Number(a.properties.sequence) || 0) - (Number(b.properties.sequence) || 0) || a.id.localeCompare(b.id));
   const column = new Map(steps.map((s, i) => [s.id, i]));
+  const equipmentColumn = new Map(topology.edges.filter(e => e.type === 'OPERATES_IN' && column.has(e.target)).map(e => [e.source, column.get(e.target)!]));
   const width = Math.max(steps.length - 1, 1) * COL_GAP;
   const positions: Record<string, { x: number; y: number }> = {};
   const cells = new Map<string, string[]>();
@@ -42,8 +45,11 @@ const computePositions = (topology: GraphTopology): Record<string, { x: number; 
     if (node.label === 'ProcessStep') { positions[node.id] = { x: column.get(node.id)! * COL_GAP, y: 0 }; return; }
     const anchor = ANCHOR_RELATION[node.label];
     const edge = anchor && topology.edges.find(e => e.type === anchor.type && (anchor.dir === 'out' ? e.source === node.id : e.target === node.id) && column.has(anchor.dir === 'out' ? e.target : e.source));
-    if (edge) {
-      const key = `${node.label}|${column.get(anchor.dir === 'out' ? edge.target : edge.source)}`;
+    const relation = EQUIPMENT_RELATION[node.label];
+    const owner = relation ? topology.edges.find(e => e.type === relation && e.source === node.id && equipmentColumn.has(e.target)) : undefined;
+    if (edge || owner) {
+      const col = edge ? column.get(anchor.dir === 'out' ? edge.target : edge.source) : equipmentColumn.get(owner!.target);
+      const key = `${node.label}|${col}`;
       cells.set(key, [...(cells.get(key) ?? []), node.id]);
     } else {
       const row = node.label in ROW_Y ? node.label : 'Other';
@@ -121,6 +127,8 @@ const STYLE: cytoscape.StylesheetJson = [
   { selector: 'node[category = "Batch"]', style: { 'background-color': '#a482fb' } },
   { selector: 'node[category = "Department"]', style: { 'background-color': '#5d7891', shape: 'round-rectangle' } },
   { selector: 'node[category = "IncidentEvent"]', style: { 'background-color': '#d68745', shape: 'diamond' } },
+  { selector: 'node[category = "MachineEvent"]', style: { 'background-color': '#e5604f', shape: 'diamond' } },
+  { selector: 'node[category = "ProfileCheck"]', style: { 'background-color': '#6fbf73', shape: 'tag' } },
   { selector: 'edge', style: { width: 1.4, 'curve-style': 'bezier', 'line-color': '#2b4d68', 'target-arrow-color': '#2b4d68', 'target-arrow-shape': 'triangle', 'arrow-scale': 0.8, 'font-size': 7, color: '#ffb48f', 'text-rotation': 'autorotate', 'text-background-color': '#081a2c', 'text-background-opacity': 0.85, 'text-background-padding': '2px' } as cytoscape.Css.Edge },
   { selector: 'edge[walked = 1]', style: { width: 1.8, 'line-color': '#3d6889', 'target-arrow-color': '#3d6889' } },
   { selector: 'edge[walked = 0]', style: { 'line-style': 'dashed', 'line-dash-pattern': [4, 4], opacity: 0.45 } as cytoscape.Css.Edge },

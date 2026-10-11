@@ -44,4 +44,6 @@ export interface ApiErrorInfo {
   status?: number;
   code?: string;
   message: string;
+  // Field → message for validation errors, so forms can show them next to the input.
+  fields?: Record<string, string>;
 }

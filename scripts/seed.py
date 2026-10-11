@@ -9,7 +9,7 @@ async def main():
         if not await db_pool.verify_connectivity():
             raise SystemExit('Neo4j không sẵn sàng. Chạy docker compose up -d neo4j trước.')
         for path in (Path('backend/data/migrations/001_init_constraints.cypher'), Path('backend/data/seed_scenarios.cypher')):
-            text = '\n'.join(line for line in path.read_text().splitlines() if not line.strip().startswith('//'))
+            text = '\n'.join(line for line in path.read_text(encoding='utf-8').splitlines() if not line.strip().startswith('//'))
             async with driver.session() as session:
                 for statement in text.split(';'):
                     if statement.strip():

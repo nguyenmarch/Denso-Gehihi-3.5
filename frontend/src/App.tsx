@@ -8,9 +8,12 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { API_BASE, fetchHealth, fetchTopology, toApiError, triggerSimulation } from './services/api';
 import { ApiErrorInfo, GraphTopology, HealthStatus, IncidentType, SimulationResult } from './types';
 import { LiveStatus } from './components/LiveStatus';
-import { WorkFlow } from './components/WorkFlow';
+import { IncidentBoard } from './components/IncidentBoard';
+import { IncidentDetail } from './components/IncidentDetail';
+import { LessonReview } from './components/LessonReview';
 import { ExpertInspector } from './components/ExpertInspector';
-import { DemoRole, WorkOrder } from './services/api';
+import { ROLE_LABELS } from './components/labels';
+import { Actor, Incident, listActors } from './services/api';
 import './app.css';
 
 type Remote<T> = { status: 'loading' } | { status: 'ready'; data: T } | { status: 'error'; error: ApiErrorInfo };
@@ -29,6 +32,18 @@ const HEALTH_POLL_MS = 15000;
 const DEFAULT_ORIGIN = 'EQ_OVEN_01';
 const PROPAGATION_RELATIONS = new Set(['OPERATES_IN', 'FLOWS_TO', 'AFFECTS']);
 
+const ACTOR_KEY = 'inav-actor';
+// Per-viewer convenience only: storage may be unavailable (private window), so every access is guarded.
+const readActorId = () => { try { return localStorage.getItem(ACTOR_KEY) ?? ''; } catch { return ''; } };
+const writeActorId = (id: string) => { try { localStorage.setItem(ACTOR_KEY, id); } catch { /* not remembered */ } };
+// The open incident lives in the URL so a reload reopens the same record.
+const readIncidentId = () => new URLSearchParams(window.location.search).get('incident') ?? '';
+const writeIncidentId = (id: string) => {
+  const url = new URL(window.location.href);
+  if (id) url.searchParams.set('incident', id); else url.searchParams.delete('incident');
+  window.history.replaceState(null, '', url);
+};
+
 const formatTime = (d: Date) => d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
 export const App: React.FC = () => {
@@ -37,8 +52,10 @@ export const App: React.FC = () => {
   const [selectedNodeId, setSelectedNodeId] = useState('');
   const [runs, setRuns] = useState<SimulationRun[]>([]);
   const [simLoading, setSimLoading] = useState(false);
-  const [demoRole, setDemoRole] = useState<DemoRole>('operator');
-  const [orders, setOrders] = useState<WorkOrder[]>([]);
+  const [actors, setActors] = useState<Remote<Actor[]>>({ status: 'loading' });
+  const [actorId, setActorId] = useState(readActorId);
+  const [incidents, setIncidents] = useState<Incident[]>([]);
+  const [incidentId, setIncidentId] = useState(readIncidentId);
   const [incidentType, setIncidentType] = useState<IncidentType>('MACHINE_BREAKDOWN');
   const [severity, setSeverity] = useState(1);
   const shownAlertId = useRef('');
@@ -60,7 +77,17 @@ export const App: React.FC = () => {
     }
   }, []);
 
+  const loadActors = useCallback(async () => {
+    setActors({ status: 'loading' });
+    try {
+      setActors({ status: 'ready', data: await listActors() });
+    } catch (err) {
+      setActors({ status: 'error', error: toApiError(err) });
+    }
+  }, []);
+
   useEffect(() => { loadTopology(); }, [loadTopology]);
+  useEffect(() => { loadActors(); }, [loadActors]);
   useEffect(() => {
     loadHealth();
     const timer = window.setInterval(loadHealth, HEALTH_POLL_MS);
@@ -89,13 +116,21 @@ export const App: React.FC = () => {
     }
   }, []);
 
-  // Mark the newest active alert on the graph, whether it came from this tab's fault command or from polling.
+  const actorList = actors.status === 'ready' ? actors.data : [];
+  const actor = actorList.find(a => a.id === actorId) ?? actorList.find(a => a.role === 'operator');
+  const role = actor?.role;
+  const changeActor = (id: string) => { setIncidents([]); setActorId(id); writeActorId(id); };
+  const selectIncident = useCallback((id: string) => { setIncidentId(id); writeIncidentId(id); }, []);
+  const upsertIncident = useCallback((incident: Incident) => setIncidents(prev => prev.map(i => i.id === incident.id ? incident : i)), []);
+  const selectedIncident = incidents.find(i => i.id === incidentId);
+
+  // Mark the newest active alert on the graph, whether it came from this tab's command or from polling.
   useEffect(() => {
-    const alert = orders.find(o => o.state === 'alert' && o.simulation);
+    const alert = incidents.find(i => i.state === 'alert' && i.simulation);
     if (!alert || alert.id === shownAlertId.current) return;
     shownAlertId.current = alert.id;
-    setRuns(prev => [{ id: Date.now(), at: new Date(alert.created_at), nodeId: alert.simulation!.origin_id, type: alert.incident_type, severity: alert.severity ?? 1, result: alert.simulation }, ...prev].slice(0, 8));
-  }, [orders]);
+    setRuns(prev => [{ id: Date.now(), at: new Date(alert.created_at), nodeId: alert.simulation!.origin_id, type: alert.incident_type, severity: alert.severity, result: alert.simulation }, ...prev].slice(0, 8));
+  }, [incidents]);
 
   const latest = runs[0];
   const lastSuccess = runs.find(r => r.result)?.result;
@@ -137,7 +172,10 @@ export const App: React.FC = () => {
       <main className="main-content" id="top">
         <header className="topbar">
           <div><p className="eyebrow">{new Date().toLocaleDateString('vi-VN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }).toUpperCase()}</p><h1>Trung tâm điều phối sự cố <span>✦</span></h1><p className="subheading">Theo dõi sự cố lan truyền qua graph chuỗi sản xuất.</p></div>
-          <div className="top-actions"><LiveStatus /></div>
+          <div className="top-actions">
+            {actor && <label className="actor-picker">Đang thao tác với vai trò demo<select aria-label="Actor demo" value={actor.id} onChange={e => changeActor(e.target.value)}>{actorList.map(a => <option key={a.id} value={a.id}>{a.name} · {ROLE_LABELS[a.role]}</option>)}</select><small>Chế độ trình diễn, không phải đăng nhập.</small></label>}
+            <LiveStatus />
+          </div>
         </header>
 
         {(backendDown || dbDown) && (
@@ -147,8 +185,16 @@ export const App: React.FC = () => {
           </div>
         )}
 
-        <WorkFlow nodes={nodes} nodeId={selectedNodeId} incidentType={incidentType} severity={severity} role={demoRole} onRoleChange={setDemoRole} orders={orders} onOrdersChange={setOrders} />
-        {demoRole !== 'technician' && <>
+        {actors.status === 'loading' && <div className="state-box compact"><LoaderCircle size={18} className="spin" /><p>Đang tải danh sách actor demo…</p></div>}
+        {actors.status === 'error' && <div className="error-banner" role="alert"><span>{actors.error.message}</span><button type="button" className="ghost-button" onClick={loadActors}><RefreshCw size={13} /> Thử lại</button></div>}
+        {actor && <div className="workspace-grid">
+          <IncidentBoard actor={actor} actors={actorList} incidents={incidents} onIncidentsChange={setIncidents} selectedId={incidentId} onSelect={selectIncident}
+            nodes={nodes} nodeId={selectedNodeId} incidentType={incidentType} severity={severity} />
+          {selectedIncident ? <IncidentDetail key={`${selectedIncident.id}:${actor.id}`} incident={selectedIncident} actor={actor} actors={actorList} onChange={upsertIncident} />
+            : <section className="panel incident-detail empty"><p>{incidentId && incidents.length ? 'Sự cố đang mở không thuộc danh sách của vai trò này.' : 'Chọn một sự cố để xem chi tiết.'}</p></section>}
+        </div>}
+        {actor && role === 'expert' && <LessonReview actor={actor} actors={actorList} incidents={incidents} />}
+        {role !== 'technician' && <>
         <section className="kpi-grid">
           <div className="kpi-card blue"><div className="kpi-icon"><Boxes size={19} /></div><span>NODE TRONG GRAPH</span><strong>{stats ? graph!.nodes.length : '—'}</strong><small>{stats ? `${stats.byLabel.ProcessStep ?? 0} công đoạn · ${stats.byLabel.Equipment ?? 0} thiết bị · ${stats.byLabel.Batch ?? 0} lô` : 'Chưa tải topology'}</small></div>
           <div className="kpi-card"><div className="kpi-icon violet"><GitBranch size={19} /></div><span>QUAN HỆ</span><strong>{stats ? graph!.edges.length : '—'}</strong><small>{stats ? <><b>{stats.propagationEdges}</b> đường lan truyền</> : 'Chưa tải topology'}</small></div>
@@ -160,7 +206,7 @@ export const App: React.FC = () => {
           <div className="panel graph-panel" id="topology">
             <div className="panel-heading">
               <div><div className="heading-row"><h2>Topology lan truyền</h2><span className="tag blue-tag">NEO4J</span></div><p>Click một node để chọn làm điểm phát sinh sự cố.</p></div>
-              <div className="graph-legend"><span><i className="legend-dot process" />Công đoạn</span><span><i className="legend-dot equipment" />Thiết bị</span><span><i className="legend-dot batch" />Lô</span><span><i className="legend-dot department" />Bộ phận</span><span><i className="legend-dot incident" />Sự kiện</span><span><i className="legend-dot impacted" />Bị ảnh hưởng</span><span><i className="legend-dot fault" />Lỗi</span><span><i className="legend-dot part" />Linh kiện</span><span><i className="legend-dot document" />Tài liệu</span></div>
+              <div className="graph-legend"><span><i className="legend-dot process" />Công đoạn</span><span><i className="legend-dot equipment" />Thiết bị</span><span><i className="legend-dot batch" />Lô</span><span><i className="legend-dot department" />Bộ phận</span><span><i className="legend-dot incident" />Sự kiện</span><span><i className="legend-dot machine-event" />Event máy</span><span><i className="legend-dot profile-check" />Kiểm tra profile</span><span><i className="legend-dot impacted" />Bị ảnh hưởng</span><span><i className="legend-dot fault" />Lỗi</span><span><i className="legend-dot part" />Linh kiện</span><span><i className="legend-dot document" />Tài liệu</span></div>
             </div>
             <div className="graph-wrap">
               {topology.status === 'loading' && <div className="state-box"><LoaderCircle size={22} className="spin" /><strong>Đang tải topology…</strong><p>GET /graph/topology</p></div>}
@@ -219,7 +265,7 @@ export const App: React.FC = () => {
             </ErrorBoundary>
           </section>
         )}
-        {demoRole === 'expert' && <ExpertInspector nodeId={selectedNodeId} orders={orders} />}
+        {role === 'expert' && <ExpertInspector nodeId={selectedNodeId} />}
         </>}
       </main>
     </div>

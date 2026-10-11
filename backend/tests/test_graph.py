@@ -47,5 +47,5 @@ async def test_graph_dependency_error_is_sanitized(endpoint):
 
 @pytest.mark.asyncio
 async def test_technician_cannot_request_raw_graph():
-    with pytest.raises(HTTPException) as exc: await graph_role('technician')
+    with pytest.raises(HTTPException) as exc: await graph_role('tech-01')
     assert exc.value.status_code == 403

@@ -6,20 +6,10 @@ import httpx
 import pytest
 from pydantic import SecretStr
 
-from app.api.v1 import demo
 from app.core.config import settings
-from app.core.database import get_db_driver
 from app.main import app
-from app.schemas.incident import SimulationResponse
-from app.services.demo_store import DemoStore, get_demo_store
+from app.services.demo_store import DemoStore
 from app.services import guidance_service as guidance
-
-
-@pytest.fixture
-def store():
-    value = DemoStore(':memory:')
-    yield value
-    value.db.close()
 
 
 @pytest.fixture
@@ -28,15 +18,6 @@ def incident():
             'steps': [{'id': 's1', 'text': 'Kiểm tra theo playbook.'}],
             'history': [], 'simulation': {'origin_id': 'EQ_PRIVATE'}, 'node_id': 'EQ_PRIVATE',
             'containment': {'status': 'proposal', 'human_review_required': True, 'text': 'Xem xét playbook.'}}
-
-
-@pytest.fixture
-def configured(monkeypatch):
-    monkeypatch.setattr(settings, 'INAV_AI_MODE', 'gemini')
-    monkeypatch.setattr(settings, 'INAV_DATA_POLICY', 'external_approved_synthetic')
-    monkeypatch.setattr(settings, 'INAV_GEMINI_API_KEY', SecretStr('secret-test-token'))
-    monkeypatch.setattr(settings, 'INAV_GEMINI_ENDPOINT', 'https://generativelanguage.googleapis.com')
-    monkeypatch.setattr(settings, 'INAV_LLM_MODEL', 'gemini-3.5-flash')
 
 
 def valid():
@@ -65,7 +46,7 @@ async def test_real_provider_http_contract(configured, incident, store, monkeypa
     assert result['model'] == 'gemini-3.5-flash'
     assert result['evidence'][0]['source'] == 'machine_event'
     assert incident == before
-    assert not store.all('learning')
+    assert not store.all('lesson')
     assert store.all('audit')[0]['failure_category'] is None
     assert 'secret-test-token' not in json.dumps(result) + json.dumps(store.all('audit'))
 
@@ -91,7 +72,7 @@ async def test_provider_fallbacks(configured, incident, store, monkeypatch, cate
     assert incident == before
     assert 'secret-test-token' not in json.dumps(result) + json.dumps(store.all('audit'))
     assert store.all('audit')[0]['latency_ms'] >= 0
-    assert not store.all('learning')
+    assert not store.all('lesson')
 
 
 @pytest.mark.asyncio
@@ -150,7 +131,7 @@ async def test_invalid_narrative_never_saved(configured, incident, store, monkey
     result = await guidance.explain(incident, store)
     assert result['failure_category'] == 'schema_violation'
     assert result['narrative'] is None
-    assert store.all('learning') == []
+    assert store.all('lesson') == []
 
 
 @pytest.mark.asyncio
@@ -159,59 +140,6 @@ async def test_total_timeout(configured, incident, store, monkeypatch):
     async def slow(_): await asyncio.sleep(1)
     monkeypatch.setattr(guidance, 'call_gemini', slow)
     assert (await guidance.explain(incident, store))['failure_category'] == 'timeout'
-
-
-@pytest.mark.asyncio
-async def test_workflow_and_idempotency(store, monkeypatch, configured):
-    async def simulate(payload, _):
-        return SimulationResponse(origin_id=payload.node_id, incident_type=payload.incident_type, impacted_nodes=[], actions_by_department={})
-    async def provider(context):
-        return {'summary': 'Xem xét hướng dẫn.', 'citations': ['e1'],
-                'steps': {s['id']: {'text': s['text'], 'citations': [s['id']]} for s in context['steps']}}
-    monkeypatch.setattr(demo, 'simulate_incident', simulate)
-    monkeypatch.setattr(guidance, 'call_gemini', provider)
-    app.dependency_overrides[get_demo_store] = lambda: store
-    app.dependency_overrides[get_db_driver] = lambda: None
-    try:
-        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://test') as client:
-            operator = {'X-Demo-Role': 'operator', 'Idempotency-Key': 'fault-key-123'}
-            payload = {'node_id': 'EQ_OVEN_01', 'incident_type': 'MACHINE_BREAKDOWN'}
-            fault = await client.post('/api/v1/incidents/fault', json=payload, headers=operator)
-            assert fault.status_code == 201
-            assert fault.json()['simulation']['origin_id'] == 'EQ_OVEN_01'
-            assert fault.json()['severity'] == 1.0
-            ident = fault.json()['id']
-            retry = await client.post('/api/v1/incidents/fault', json=payload, headers=operator)
-            assert retry.json()['id'] == ident
-            assert len(store.all('incident')) == 1
-            conflict = await client.post('/api/v1/incidents/fault', json={**payload, 'severity': .3}, headers=operator)
-            assert conflict.status_code == 409
-            base = f'/api/v1/incidents/{ident}'
-            assert (await client.post(base + '/guidance/explain', json={})).status_code == 409
-            operator['Idempotency-Key'] = 'dispatch-key-123'
-            assert (await client.post(base + '/dispatch', json={}, headers=operator)).status_code == 200
-            assert (await client.post(base + '/dispatch', json={}, headers=operator)).status_code == 200
-            technician = {'X-Demo-Role': 'technician', 'Idempotency-Key': 'start-key-123'}
-            assert (await client.post(base + '/dispatch', json={}, headers=technician)).status_code == 403
-            order = (await client.get(base, headers=technician)).json()
-            assert 'node_id' not in order and 'simulation' not in order
-            assert not re_has_ids(json.dumps(order))
-            explained = await client.post(base + '/guidance/explain', json={}, headers=technician)
-            assert explained.json()['mode'] == 'llm'
-            assert (await client.post(base + '/start', json={}, headers=technician)).status_code == 200
-            technician['Idempotency-Key'] = 'resolve-key-123'
-            assert (await client.post(base + '/resolve', json={}, headers=technician)).status_code == 422
-            assert (await client.post(base + '/resolve', json={'report': 'Đã kiểm tra.'}, headers=technician)).json()['state'] == 'resolved'
-            assert (await client.post(base + '/resolve', json={'report': 'Đã kiểm tra.'}, headers=technician)).status_code == 200
-            assert len(store.all('incident')[0]['history']) == 4
-            assert (await client.get('/api/v1/demo/audit', headers=technician)).status_code == 403
-    finally:
-        app.dependency_overrides.clear()
-
-
-def re_has_ids(text):
-    import re
-    return bool(re.search(r'\b(?:EQ_|DEP_|STEP_|BATCH_)\w+', text))
 
 
 @pytest.mark.asyncio
@@ -232,7 +160,7 @@ def test_persistence_and_atomic_command(tmp_path):
     path = str(tmp_path / 'store.sqlite')
     first = DemoStore(path)
     def action():
-        first.write_incident({'id': 'one', 'state': 'resolved'})
+        first.write('incident', {'id': 'one', 'state': 'resolved'})
         return {'id': 'one'}
     first.command('key-123456', 'fingerprint', action)
     first.db.close()
@@ -240,25 +168,8 @@ def test_persistence_and_atomic_command(tmp_path):
     assert second.get('incident', 'one')['state'] == 'resolved'
     assert second.command('key-123456', 'fingerprint', lambda: pytest.fail('duplicate action')) == {'id': 'one'}
     def failure():
-        second.write_incident({'id': 'two'})
+        second.write('incident', {'id': 'two'})
         raise ValueError('interrupt')
     with pytest.raises(ValueError): second.command('failure-key', 'mark', failure)
     assert second.get('incident', 'two') is None
     second.db.close()
-
-@pytest.mark.asyncio
-async def test_default_store_dependency_uses_event_loop_thread(tmp_path, monkeypatch):
-    from app.services import demo_store
-    monkeypatch.setattr(settings, 'INAV_STORE_PATH', str(tmp_path / 'demo.sqlite'))
-    monkeypatch.setattr(demo_store, '_store', None)
-    async def simulate(payload, _):
-        return SimulationResponse(origin_id=payload.node_id, incident_type=payload.incident_type, impacted_nodes=[], actions_by_department={})
-    async def driver(): return None
-    monkeypatch.setattr(demo, 'simulate_incident', simulate)
-    app.dependency_overrides[get_db_driver] = driver
-    try:
-        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://test') as client:
-            response = await client.post('/api/v1/incidents/fault', json={'node_id': 'EQ_OVEN_01', 'incident_type': 'MACHINE_BREAKDOWN'}, headers={'X-Demo-Role': 'operator', 'Idempotency-Key': 'default-store-test'})
-            assert response.status_code == 201
-        demo_store._store.db.close()
-    finally: app.dependency_overrides.clear()

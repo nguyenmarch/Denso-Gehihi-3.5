@@ -327,25 +327,25 @@ Task IDs phiên bản này thay danh sách FE/BE trước; dùng ID kèm tiêu �
 
 | Mã việc | Owner chính | Reviewer | Trạng thái | Hạn / điểm ghép | Output / revision | Blocker |
 |---|---|---|---|---|---|---|
-| PRE-01 | FE | BE / người phụ trách demo | Chưa nhận | TBD / M0 | Chưa có | — |
-| PRE-02 | BE | FE | Chưa nhận | TBD / M0 | Chưa có | PRE-01 |
-| BE-01 | BE | FE | Chưa nhận | TBD / M1 | Chưa có | PRE-01 / PRE-02 |
-| BE-02 | BE | FE | Chưa nhận | TBD / M1 | Chưa có | PRE-02 / BE-01 |
-| BE-03 | BE | FE | Chưa nhận | TBD / M1 | Chưa có | PRE-02 / BE-02 |
-| BE-04 | BE | FE | Chưa nhận | TBD / M1 | Chưa có | PRE-02 / BE-01 / BE-02 |
-| BE-05 | BE | FE | Chưa nhận | TBD / M1 | Chưa có | PRE-02 / BE-01 / BE-02 |
-| BE-06 | BE | FE | Chưa nhận | TBD / M2 | Chưa có | PRE-02 / BE-02 / BE-04 / BE-05 / config provider |
-| BE-07 | BE | FE | Chưa nhận | TBD / M2 | Chưa có | PRE-02 / BE-03 / BE-05 |
+| PRE-01 | FE | BE / người phụ trách demo | Chờ review | 12/10 / M0 | docs/demo-script.md mục “Kịch bản dự kiến”; quyết định đã chốt | Người phụ trách demo xác nhận |
+| PRE-02 | BE | FE | Chờ review | 12/10 / M0 | docs/api.md mục “Contract demo”; docs/architecture.md | — |
+| BE-01 | BE | FE | Chờ review | 12/10 / M1 | Seed 24 node / 40 quan hệ, chạy lại không trùng | PRE-01 / PRE-02 |
+| BE-02 | BE | FE | Chờ review | 12/10 / M1 | scenarios/trigger, fault, list/detail, origin type | PRE-02 / BE-01 |
+| BE-03 | BE | FE | Chờ review | 12/10 / M1 | dispatch/start/report, actor history, unresolved | PRE-02 / BE-02 |
+| BE-04 | BE | FE | Chờ review | 12/10 / M1 | impact suspect_window_v1 | PRE-02 / BE-01 / BE-02 |
+| BE-05 | BE | FE | Chờ review | 12/10 / M1 | guidance theo (tài sản, loại), knowledge gap | PRE-02 / BE-01 / BE-02 |
+| BE-06 | BE | FE | Chờ review | 12/10 / M2 | explain + ask, retry; live trong container | PRE-02 / BE-02 / BE-04 / BE-05 / config provider |
+| BE-07 | BE | FE | Chờ review | 12/10 / M2 | lesson pending/accepted/rejected, dùng lại | PRE-02 / BE-03 / BE-05 |
 | BE-08 | BE | FE | Chưa nhận | TBD / M0 + M3 | Chưa có | Setup: —; validation: BE-01…BE-07 |
-| FE-01 | FE | BE | Chưa nhận | TBD / M1 | Chưa có | PRE-01 / PRE-02 / setup BE-08 |
-| FE-02 | FE | BE | Chưa nhận | TBD / M1 | Chưa có | FE-01 / BE-01 / BE-02 |
-| FE-03 | FE | BE | Chưa nhận | TBD / M1 | Chưa có | FE-02 / BE-04 |
-| FE-04 | FE | BE | Chưa nhận | TBD / M1 | Chưa có | FE-02 / BE-03 |
-| FE-05 | FE | BE | Chưa nhận | TBD / M1 | Chưa có | FE-04 / BE-03 / BE-05 / impact FE-03 |
-| FE-06 | FE | BE | Chưa nhận | TBD / M2 | Chưa có | FE-05 / BE-06 |
-| FE-07 | FE | BE | Chưa nhận | TBD / M2 | Chưa có | FE-05 / BE-07 |
+| FE-01 | FE | BE | Chờ review | 12/10 / M1 | actor picker, client theo contract | PRE-01 / PRE-02 / setup BE-08 |
+| FE-02 | FE | BE | Chờ review | 12/10 / M1 | IncidentBoard/Detail, mở lại qua URL | FE-01 / BE-01 / BE-02 |
+| FE-03 | FE | BE | Chờ review | 12/10 / M1 | Impact panel + graph | FE-02 / BE-04 |
+| FE-04 | FE | BE | Chờ review | 12/10 / M1 | Form giao việc | FE-02 / BE-03 |
+| FE-05 | FE | BE | Chờ review | 12/10 / M1 | Report form, history | FE-04 / BE-03 / BE-05 / impact FE-03 |
+| FE-06 | FE | BE | Chờ review | 12/10 / M2 | Hỏi trợ lý | FE-05 / BE-06 |
+| FE-07 | FE | BE | Chờ review | 12/10 / M2 | LessonReview | FE-05 / BE-07 |
 | FE-08 | FE | BE | Chưa nhận | TBD / M3 | Chưa có | FE-01…FE-07 / BE-08 |
-| INT-01 | FE | BE | Chưa nhận | TBD / M1 | Chưa có | Task M1 / setup BE-08 |
+| INT-01 | FE | BE | Chờ review | 12/10 / M1 | Biên bản trong demo-script.md | Task M1 / setup BE-08 |
 | INT-02 | BE | FE | Chưa nhận | TBD / M3 | Chưa có | Task BE/FE / INT-01 |
 | INT-03 | Người phụ trách demo | FE / BE | Chưa nhận | TBD / M3 | Chưa có | INT-01 / INT-02 |
 

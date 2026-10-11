@@ -4,6 +4,8 @@ CREATE CONSTRAINT unique_process_id IF NOT EXISTS FOR (p:ProcessStep) REQUIRE p.
 CREATE CONSTRAINT unique_batch_id IF NOT EXISTS FOR (b:Batch) REQUIRE b.id IS UNIQUE;
 CREATE CONSTRAINT unique_department_id IF NOT EXISTS FOR (d:Department) REQUIRE d.id IS UNIQUE;
 CREATE CONSTRAINT unique_incident_id IF NOT EXISTS FOR (i:IncidentEvent) REQUIRE i.id IS UNIQUE;
+CREATE CONSTRAINT unique_profile_check_id IF NOT EXISTS FOR (c:ProfileCheck) REQUIRE c.id IS UNIQUE;
+CREATE CONSTRAINT unique_machine_event_id IF NOT EXISTS FOR (v:MachineEvent) REQUIRE v.id IS UNIQUE;
 
 CREATE INDEX idx_process_name IF NOT EXISTS FOR (p:ProcessStep) ON (p.name);
 CREATE INDEX idx_equipment_name IF NOT EXISTS FOR (e:Equipment) ON (e.name);

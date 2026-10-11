@@ -36,7 +36,7 @@ class DemoStore:
         if cached:
             if cached['fingerprint'] != fingerprint:
                 from fastapi import HTTPException
-                raise HTTPException(409, detail='Idempotency-Key đã được dùng cho thao tác khác.')
+                raise HTTPException(409, detail={'code': 'idempotency_conflict', 'message': 'Idempotency-Key đã được dùng cho thao tác khác.'})
             return cached['response']
         # Incident and retry record commit together, including after a process crash.
         with self.db:
@@ -44,8 +44,9 @@ class DemoStore:
             self.db.execute('INSERT INTO records VALUES (?,?,?)', ('command', ident, json.dumps({'fingerprint': fingerprint, 'response': response})))
         return response
 
-    def write_incident(self, incident):
-        self.db.execute('INSERT OR REPLACE INTO records VALUES (?,?,?)', ('incident', incident['id'], json.dumps(incident, ensure_ascii=False)))
+    def write(self, kind, record):
+        # Joins the caller's transaction (see command); commits with the idempotency record.
+        self.db.execute('INSERT OR REPLACE INTO records VALUES (?,?,?)', (kind, record['id'], json.dumps(record, ensure_ascii=False)))
 
 
 _store = None

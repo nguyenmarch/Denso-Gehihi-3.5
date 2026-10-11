@@ -1,5 +1,7 @@
 # Demo handoff implementation — 11/10/2026
 
+> Ghi chú 12/10/2026: phần workflow demo trong tài liệu này (`X-Demo-Role`, `/resolve`, `/demo/learning`) đã được thay bằng contract trong [api.md](api.md) mục "Contract demo". Phần Gemini/fallback, realtime và timeout vẫn đúng.
+
 Handoff đã được chuyển sang stack thực tế của repository: React/TypeScript + FastAPI + Neo4j (`77ac0e1` khi bắt đầu). Baseline Node.js `95a0a58`, các file `src/app/*.js`, `public/*.js` và kết quả 104 tests trong tài liệu không thuộc repository này.
 
 ## Chạy local

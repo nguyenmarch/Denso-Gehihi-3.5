@@ -55,9 +55,24 @@ Frontend mặc định gọi `http://localhost:8000/api/v1`.
 ## Test
 
 ```bash
-PYTHONPATH=backend pytest -q
-cd frontend && npm run build
+npm test                      # backend tests (không cần Neo4j)
+npm run preflight             # cần Neo4j đã seed; kèm frontend build
+npm run demo                  # HTTP rehearsal trên Neo4j thật, store tạm, port 8099
+INAV_REQUIRE_LIVE=1 npm run demo   # thất bại nếu Gemini không trả narrative/answer thật
+node scripts/ui_smoke.mjs --shots <thư mục>   # cần backend + frontend đang chạy; INAV_UI_BASE / INAV_API_BASE để đổi địa chỉ
 ```
+
+Seed (chạy lại được, không xoá dữ liệu): `PYTHONPATH=backend .venv/Scripts/python.exe scripts/seed.py` trên Windows, `.venv/bin/python` trên Linux/macOS. Sau seed: 24 node / 40 quan hệ.
+
+UI smoke ghi dữ liệu vào store của backend nó gọi, và kịch bản chỉ kích hoạt được một lần cho mỗi event. Vì vậy hãy chạy smoke trên backend riêng có store tạm, ví dụ:
+
+```bash
+INAV_STORE_PATH=/tmp/smoke.sqlite3 CORS_ORIGINS=http://127.0.0.1:5175 PYTHONPATH=backend .venv/bin/python -m uvicorn app.main:app --port 8001
+VITE_API_BASE=http://127.0.0.1:8001/api/v1 npx --prefix frontend vite --port 5175 --strictPort   # chạy trong thư mục frontend
+INAV_UI_BASE=http://127.0.0.1:5175 INAV_API_BASE=http://127.0.0.1:8001/api/v1 node scripts/ui_smoke.mjs --shots /tmp/inav-ui-shots
+```
+
+Chỉ chạy một backend trên port 8000: container `incident_backend` và uvicorn local cùng port sẽ làm trình duyệt gọi lẫn hai backend. Frontend phải mở ở origin có trong `CORS_ORIGINS` (mặc định `localhost:5173`/`127.0.0.1:5173`).
 
 ## Biến môi trường
 
