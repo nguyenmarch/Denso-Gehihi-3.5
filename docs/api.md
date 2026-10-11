@@ -359,3 +359,36 @@ GET /api/v1/lessons?status=pending|accepted|rejected     # expert
 - Chỉ bài học `accepted` mới xuất hiện trong guidance của incident cùng ngữ cảnh.
 - Bài học đã xem xét không sửa hoặc duyệt lại được (409).
 - Tạo bài học là request riêng, nên lỗi ở bước này không ảnh hưởng report đã lưu.
+
+### Máy: tín hiệu và nhật ký bất thường
+
+Chỉ đọc, mọi actor hợp lệ đều gọi được. Không cần Neo4j: danh mục máy và tín hiệu nằm trong `backend/app/models/machines.py`, khớp với các node `Equipment` trong seed.
+
+```http
+GET /api/v1/machines                                  # thẻ máy: trạng thái, giá trị hiện tại, sparkline 15 phút
+GET /api/v1/machines/{id}/telemetry?minutes=15|60|120 # chuỗi tín hiệu (5–120 phút, tối đa 720 điểm)
+GET /api/v1/machines/{id}/events?limit=100            # nhật ký bất thường, mới nhất trước
+```
+
+```json
+{
+  "id": "EQ_OVEN_01:temperature:1791000046", "machine_id": "EQ_OVEN_01", "kind": "threshold",
+  "signal": "temperature", "label": "Nhiệt độ vùng gia nhiệt", "unit": "°C",
+  "level": "critical", "current_level": "warning", "threshold": 245.0, "peak": 252.6,
+  "started_at": "…", "ended_at": null, "incident_ids": ["inc-…"]
+}
+```
+
+Luồng dữ liệu:
+
+1. Operator tạo incident (kịch bản hoặc gây lỗi thủ công) như trước. Từ `created_at`, lỗi tác động lên tín hiệu của máy đó:
+   - `SCN_OVEN_TEMP`: nhiệt độ lò tăng dần.
+   - `SCN_PACK_JAM` và `MACHINE_BREAKDOWN`: máy dừng, không có giá trị sản xuất.
+   - `CYCLE_TIME_SPIKE`: cycle time tăng vọt.
+   - Mức độ của sự cố (severity) quyết định độ lệch.
+2. Bộ phát hiện chỉ đọc tín hiệu. Một mức phải giữ 3 mẫu liên tiếp (6 giây) mới mở hoặc đóng bất thường; muốn hạ mức, giá trị phải xuống dưới ngưỡng một khoảng `hyst`. Mỗi bất thường được gắn với các incident đang tác động lên đúng kênh tín hiệu đó.
+3. Khi technician báo `fixed`, lỗi hết tác động: máy chạy lại ngay, còn giá trị lệch giảm về trong nửa thời gian tăng. Báo `not_fixed` thì máy vẫn lệch.
+
+- `MATERIAL_DEFECT` (gốc là công đoạn hoặc lô) không tác động lên dữ liệu máy.
+- Không có bất thường ngẫu nhiên: máy chỉ lệch khi có incident.
+- Mẫu tín hiệu là hàm xác định của (máy, thời điểm, incident) nên giữ nguyên sau khi khởi động lại. Backend dựng lại 2 giờ gần nhất trong bộ nhớ; nhật ký bất thường được lưu vào store demo (`machine_event`), và bất thường đang mở được nối tiếp thay vì mở lại.

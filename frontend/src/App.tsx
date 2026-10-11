@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, Boxes, BrainCircuit, CheckCircle2, ClipboardList, GitBranch, GraduationCap, LoaderCircle, Network, RefreshCw, Wifi, WifiOff } from 'lucide-react';
+import { Activity, AlertTriangle, Boxes, BrainCircuit, CheckCircle2, ClipboardList, GitBranch, GraduationCap, LoaderCircle, Network, RefreshCw, Wifi, WifiOff } from 'lucide-react';
 import { IncidentTrigger } from './components/IncidentTrigger';
 import { GraphCanvas } from './components/GraphCanvas';
 import { ActionMatrix } from './components/ActionMatrix';
@@ -12,12 +12,14 @@ import { IncidentBoard } from './components/IncidentBoard';
 import { IncidentDetail } from './components/IncidentDetail';
 import { LessonReview } from './components/LessonReview';
 import { ExpertInspector } from './components/ExpertInspector';
+import { MachineList } from './components/MachineList';
+import { MachineDetail } from './components/MachineDetail';
 import { ROLE_LABELS } from './components/labels';
 import { Actor, Incident, listActors, Role } from './services/api';
 import './app.css';
 
 type Remote<T> = { status: 'loading' } | { status: 'ready'; data: T } | { status: 'error'; error: ApiErrorInfo };
-type View = 'incidents' | 'graph' | 'lessons';
+type View = 'incidents' | 'machines' | 'graph' | 'lessons';
 
 interface SimulationRun {
   id: number;
@@ -52,7 +54,7 @@ const writeParam = (name: string, value: string) => {
   if (value) url.searchParams.set(name, value); else url.searchParams.delete(name);
   window.history.replaceState(null, '', url);
 };
-const readView = (): View => { const v = readParam('view'); return v === 'graph' || v === 'lessons' ? v : 'incidents'; };
+const readView = (): View => { const v = readParam('view'); return v === 'machines' || v === 'graph' || v === 'lessons' ? v : 'incidents'; };
 
 const formatTime = (d: Date) => d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(-2).map(w => w[0]).join('').toUpperCase();
@@ -70,6 +72,7 @@ export const App: React.FC = () => {
   const [incidentType, setIncidentType] = useState<IncidentType>('MACHINE_BREAKDOWN');
   const [severity, setSeverity] = useState(1);
   const [requestedView, setRequestedView] = useState<View>(readView);
+  const [machineId, setMachineId] = useState(() => readParam('machine'));
   const [lastSync, setLastSync] = useState<number>();
   const shownAlertId = useRef('');
 
@@ -139,9 +142,11 @@ export const App: React.FC = () => {
   const changeSeverity = useCallback((value: number) => setSeverity(Math.round(value * 10) / 10), []);
 
   // Technicians have no graph; only experts review lessons.
-  const views: View[] = role === 'technician' ? ['incidents'] : role === 'expert' ? ['incidents', 'graph', 'lessons'] : ['incidents', 'graph'];
+  const views: View[] = role === 'technician' ? ['incidents'] : role === 'expert' ? ['incidents', 'machines', 'graph', 'lessons'] : ['incidents', 'machines', 'graph'];
   const view = views.includes(requestedView) ? requestedView : 'incidents';
   const openView = (next: View) => { setRequestedView(next); writeParam('view', next === 'incidents' ? '' : next); };
+  const openMachine = (id: string) => { setMachineId(id); writeParam('machine', id); };
+  const openIncident = (id: string) => { selectIncident(id); openView('incidents'); };
 
   // Mark the newest active alert on the graph, whether it came from this tab's command or from polling.
   useEffect(() => {
@@ -194,6 +199,7 @@ export const App: React.FC = () => {
       role === 'technician' ? 'Việc của tôi' : role === 'expert' ? 'Hồ sơ sự cố' : 'Điều phối sự cố',
       role === 'technician' ? 'Nhận việc, làm theo hướng dẫn và báo cáo kết quả.' : 'Theo dõi sự cố trên dây chuyền và quyết định xử lý.',
     ],
+    machines: machineId ? ['Hoạt động máy', 'Tín hiệu theo thời gian thực và các lần bất thường phát hiện từ dữ liệu.'] : ['Giám sát máy', 'Trạng thái từng máy, tính từ dữ liệu tín hiệu. Chọn một máy để xem chi tiết.'],
     graph: ['Knowledge graph & mô phỏng', 'Theo dõi sự cố lan truyền qua graph chuỗi sản xuất.'],
     lessons: ['Duyệt bài học', 'Bài học từ báo cáo kỹ thuật chỉ vào hướng dẫn sau khi chuyên gia chấp nhận.'],
   };
@@ -208,6 +214,9 @@ export const App: React.FC = () => {
             <ClipboardList size={17} /> {heading.incidents[0]}
             {waiting > 0 && <span className="nav-count alert" title={`${waiting} sự cố đang chờ bạn xử lý`}>{waiting}</span>}
           </button>
+          {views.includes('machines') && <button type="button" className={`nav-item ${view === 'machines' ? 'active' : ''}`} onClick={() => { openView('machines'); openMachine(''); }}>
+            <Activity size={17} /> Giám sát máy
+          </button>}
           {views.includes('graph') && <button type="button" className={`nav-item ${view === 'graph' ? 'active' : ''}`} onClick={() => openView('graph')}>
             <Network size={17} /> Graph & mô phỏng
           </button>}
@@ -253,6 +262,10 @@ export const App: React.FC = () => {
           {selectedIncident ? <IncidentDetail key={`${selectedIncident.id}:${actor.id}`} incident={selectedIncident} actor={actor} actors={actorList} onChange={upsertIncident} />
             : <section className="panel incident-detail empty"><div className="state-box"><ClipboardList size={26} /><strong>{incidentId && incidents.length ? 'Sự cố đang mở không thuộc danh sách của vai trò này' : 'Chưa chọn sự cố'}</strong><p>Chọn một sự cố ở danh sách bên trái để xem tác động, hướng dẫn và thao tác.</p></div></section>}
         </div>}
+
+        {actor && view === 'machines' && (machineId
+          ? <MachineDetail key={machineId} actor={actor} machineId={machineId} onBack={() => openMachine('')} onOpenIncident={openIncident} />
+          : <MachineList actor={actor} onOpen={openMachine} />)}
 
         {actor && role === 'expert' && <div hidden={view !== 'lessons'}><LessonReview actor={actor} actors={actorList} incidents={incidents} /></div>}
 

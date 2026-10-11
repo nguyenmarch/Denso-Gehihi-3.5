@@ -180,3 +180,29 @@ export const command = async <T,>(path: string, body: object, actor: Actor, meth
   return data;
 };
 export const fetchNodeDetails = (id: string) => request<Record<string, unknown>>(http.get(`/graph/node/${encodeURIComponent(id)}`));
+
+// Machine screen (read-only): synthetic telemetry and the anomaly log detected from it. See docs/api.md, "Máy".
+export type MachineLevel = 'normal' | 'warning' | 'critical';
+export type MachineState = MachineLevel | 'stopped';
+export interface SignalMeta { key: string; label: string; unit: string; warn: number; crit: number; decimals: number; }
+export interface MachineAnomaly {
+  id: string; machine_id: string; kind: 'threshold' | 'stop'; signal: string | null; label: string; unit: string | null;
+  level: Exclude<MachineLevel, 'normal'>; current_level: MachineLevel; threshold: number | null; peak: number | null;
+  started_at: string; ended_at: string | null; incident_ids: string[];
+}
+export interface MachineSummary {
+  id: string; name: string; step: string; state: MachineState; running: boolean | null;
+  signals: (SignalMeta & { value: number | null; level: MachineLevel })[];
+  spark: { signal: string; values: (number | null)[] };
+  open_events: number; last_event: MachineAnomaly | null;
+}
+export interface MachineTelemetry {
+  machine: { id: string; name: string; step: string; state: MachineState };
+  minutes: number; step_seconds: number; now: string; signals: SignalMeta[];
+  t: number[]; running: boolean[]; series: Record<string, (number | null)[]>;
+}
+export const listMachines = (actor: Actor) => request<MachineSummary[]>(http.get('/machines', as(actor)));
+export const getTelemetry = (id: string, minutes: number, actor: Actor) =>
+  request<MachineTelemetry>(http.get(`/machines/${encodeURIComponent(id)}/telemetry`, { ...as(actor), params: { minutes } }));
+export const listMachineEvents = (id: string, actor: Actor) =>
+  request<MachineAnomaly[]>(http.get(`/machines/${encodeURIComponent(id)}/events`, as(actor)));
