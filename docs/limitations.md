@@ -3,7 +3,7 @@
 - Đây là prototype, chưa phải hệ thống production.
 - Dữ liệu và topology phụ thuộc seed Neo4j; thời gian, record xử lý và kiểm tra profile là dữ liệu giả lập của một ca duy nhất (`EQ_OVEN_01`).
 - Incident, report, history, bài học, command replay và audit được lưu SQLite local; chưa hỗ trợ multi-user scaling. Hồ sơ theo contract trước 12/10/2026 vẫn nằm trong store nhưng không được hiển thị.
-- Topology/impact lấy từ API; SSE plant_tick chỉ là heartbeat synthetic, không phải telemetry máy.
+- Topology/impact lấy từ API; SSE plant_tick chỉ là heartbeat synthetic, không phải telemetry máy; UI không hiển thị nó, chỉ báo đồng bộ dựa trên lần tải danh sách sự cố gần nhất.
 - Worker SCADA/MES mới là integration hook, chưa kết nối hệ thống thật.
 - Actor demo không phải authentication/authorization production. Guidance audit chỉ ghi metadata an toàn.
 - Quy tắc tác động `suspect_window_v1`:

@@ -78,7 +78,14 @@ def visible(incident, actor):
 
 def public(incident, actor):
     # Technicians get the asset and impact items, not the raw propagation graph.
-    return {k: v for k, v in incident.items() if k != 'simulation'} if actor['role'] == 'technician' else incident
+    if actor['role'] == 'technician':
+        return {k: v for k, v in incident.items() if k != 'simulation'}
+    if not incident.get('simulation'):
+        return incident
+    # Playbook actions come from static rules; resolve them on read so records stored before a rule fix
+    # never show another asset's steps.
+    actions = RecommendationService().get_actions(incident['incident_type'], {'node_id': incident['asset']['id']})
+    return {**incident, 'simulation': {**incident['simulation'], 'actions_by_department': actions}}
 
 
 def entry(actor, action, before, after, note=None):

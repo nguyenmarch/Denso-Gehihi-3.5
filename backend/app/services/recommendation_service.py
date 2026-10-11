@@ -10,11 +10,19 @@ class RecommendationService:
 
     def get_actions(self, incident_type: str, context: dict | None = None) -> Dict[str, str]:
         context = context or {}
-        actions = dict(self.playbook.get(incident_type.upper(), {
+        incident_type = incident_type.upper()
+        node_id = context.get("node_id")
+        # Playbooks are written for one asset each (see CONTEXT_GUIDANCE); applying the oven's steps to
+        # another node would show instructions for the wrong machine, so other origins get only a gap note.
+        written_for = [asset for (asset, kind) in CONTEXT_GUIDANCE if kind == incident_type]
+        if node_id and written_for and node_id not in written_for:
+            return {"CONTEXT": f"Chưa có playbook {incident_type} cho {node_id} (playbook hiện viết cho {', '.join(written_for)}). "
+                               "Không áp dụng hành động của thiết bị khác; cần chuyên gia bổ sung."}
+        actions = dict(self.playbook.get(incident_type, {
             "DEP_PROD": "Contain the incident, identify the last-good state and notify the shift manager."
         }))
-        if context.get("node_id"):
-            actions["CONTEXT"] = f"Incident origin: {context['node_id']}. Follow the site escalation matrix and record timestamps."
+        if node_id:
+            actions["CONTEXT"] = f"Incident origin: {node_id}. Follow the site escalation matrix and record timestamps."
         return actions
 
     def get_context_guidance(self, asset: dict, incident_type: str) -> dict | None:

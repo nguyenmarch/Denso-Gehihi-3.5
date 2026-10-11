@@ -50,7 +50,7 @@ Vai trò là chế độ trình diễn local qua `X-Demo-Role`, không phải đ
 | BE-01 health | Giữ `status`/`database`; thêm capabilities và dependencies; ping không gọi Gemini |
 | BE-02/03 Gemini + fallback | `guidance_service.py`: REST generateContent, model cố định, timeout tổng, taxonomy failure, audit model/latency/mode |
 | BE-04/05 safety/evidence | Allowlist exact HTTPS host, không redirect/proxy env, synthetic-only, playbook được lọc ID; schema/citation validation; evidence nhãn thân thiện |
-| FE-01 realtime | EventSource `plant_tick`, last event, Live/retry/disconnected/stale; offline đóng SSE, online mở lại |
+| FE-01 realtime | Chỉ báo đồng bộ theo lần poll `/incidents` thành công gần nhất (5 giây/lần), stale sau 15 giây. UI không dùng `plant_tick`: heartbeat không mang dữ liệu nên không chứng minh số liệu trên màn hình còn mới |
 | FE-02 request faults | CRUD 15 giây; explain 65 giây; `finally` mở lại nút; Idempotency-Key tồn tại sau lỗi và reload |
 | FE-03/05 wording | Narrative Gemini/fallback riêng; deterministic steps và containment proposal giữ nguyên |
 | FE-04 graph | Force relaxation có damping và tether theo các tầng ngữ nghĩa, không randomize/animate; giữ toàn bộ nodes/parallel edges; màu/shape, selection edges, fit/zoom, inspector/history |

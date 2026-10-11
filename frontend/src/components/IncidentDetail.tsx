@@ -52,7 +52,7 @@ function DispatchForm({ incident, actor, actors, onChange }: { incident: Inciden
     {error?.fields?.assignee_id && <small className="field-error">{error.fields.assignee_id}</small>}
     <label>Quyết định / ghi chú<textarea value={note} maxLength={1000} onChange={e => setNote(e.target.value)} disabled={busy} placeholder="Ví dụ: giữ lô bị ảnh hưởng và chưa rõ, giao sửa lò" /></label>
     {error && <p className="error-banner" role="alert">{error.message}</p>}
-    <button className="ghost-button" disabled={busy || !assignee || !note.trim()} onClick={submit}>{busy ? 'Đang gửi…' : 'Giao việc'}</button>
+    <button type="button" className="run-button" disabled={busy || !assignee || !note.trim()} onClick={submit}>{busy ? 'Đang gửi…' : 'Giao việc'}</button>
   </div>;
 }
 
@@ -109,7 +109,7 @@ function AssistantPanel({ incident, actor }: { incident: Incident; actor: Actor 
   return <div className="detail-block form-block"><h3>Hỏi trợ lý về sự cố này</h3>
     <label>Câu hỏi<textarea value={question} maxLength={500} onChange={e => setQuestion(e.target.value)} disabled={busy} placeholder="Ví dụ: Nên kiểm tra gì trước?" /></label>
     <small className="muted">Chỉ nhập dữ liệu synthetic. Câu hỏi được gửi tới Gemini cùng hướng dẫn của sự cố.</small>
-    <button className="ghost-button" disabled={busy || !question.trim()} onClick={ask}>{busy ? 'Đang hỏi…' : 'Hỏi'}</button>
+    <button type="button" className="run-button" disabled={busy || !question.trim()} onClick={ask}>{busy ? 'Đang hỏi…' : 'Hỏi'}</button>
     {error && <p className="error-banner" role="alert">{error}</p>}
     {answer?.mode === 'llm' && <div className="narrative assistant-answer"><span className="tag blue-tag">Trả lời bởi Gemini</span><p>{answer.answer}</p><small>Nguồn: {answer.citations.map(c => c.label).join(', ')}</small></div>}
     {answer?.mode === 'knowledge' && <div className="fallback" role="status"><strong>Không có câu trả lời từ Gemini</strong><p>{answer.failure_reason} Hãy dùng các bước hướng dẫn ở trên.</p></div>}
@@ -156,7 +156,7 @@ function ReportForm({ incident, actor, onChange }: { incident: Incident; actor: 
     {error?.fields?.next_step && <small className="field-error">{error.fields.next_step}</small>}
     <label>Việc còn mở (mỗi dòng một việc)<textarea value={openItems} onChange={e => setOpenItems(e.target.value)} disabled={busy} /></label>
     {error && <p className="error-banner" role="alert">{error.message}</p>}
-    <button className="ghost-button" disabled={busy || !summary.trim() || (outcome === 'not_fixed' && !nextStep.trim())} onClick={submit}>{busy ? 'Đang gửi…' : 'Gửi báo cáo'}</button>
+    <button type="button" className="run-button" disabled={busy || !summary.trim() || (outcome === 'not_fixed' && !nextStep.trim())} onClick={submit}>{busy ? 'Đang gửi…' : 'Gửi báo cáo'}</button>
   </div>;
 }
 
@@ -175,9 +175,11 @@ function LessonForm({ incident, actor }: { incident: Incident; actor: Actor }) {
     <label>Bài học rút ra từ báo cáo<textarea value={text} maxLength={1000} onChange={e => setText(e.target.value)} disabled={busy} /></label>
     {error && <p className="error-banner" role="alert">{error}</p>}
     {saved && <p role="status" className="muted">Đã gửi bài học: “{saved.text}” — đang chờ chuyên gia duyệt, chưa phải hướng dẫn đã xác nhận.</p>}
-    <button className="ghost-button" disabled={busy || !text.trim()} onClick={submit}>{busy ? 'Đang gửi…' : 'Gửi đề xuất'}</button>
+    <button type="button" className="run-button" disabled={busy || !text.trim()} onClick={submit}>{busy ? 'Đang gửi…' : 'Gửi đề xuất'}</button>
   </div>;
 }
+
+type Tab = 'impact' | 'guidance' | 'action' | 'records';
 
 // Keyed by incident and actor in App, so panels below reset per record without keys of their own.
 export function IncidentDetail({ incident, actor, actors, onChange }: { incident: Incident; actor: Actor; actors: Actor[]; onChange: Change }) {
@@ -190,6 +192,23 @@ export function IncidentDetail({ incident, actor, actors, onChange }: { incident
     catch (err) { setError(toApiError(err).message); }
     finally { setBusy(false); }
   };
+
+  const canDispatch = actor.role === 'operator' && (incident.state === 'alert' || incident.state === 'unresolved');
+  const canStart = technician && incident.state === 'dispatched';
+  const canReport = technician && incident.state === 'in_progress';
+  const canPropose = technician && incident.reports.length > 0;
+  const pending = canDispatch || canStart || canReport;
+  const tabs: { id: Tab; label: string; show: boolean }[] = [
+    { id: 'action', label: 'Thao tác', show: pending || canPropose },
+    { id: 'impact', label: 'Tác động', show: true },
+    { id: 'guidance', label: 'Hướng dẫn', show: incident.state !== 'alert' },
+    { id: 'records', label: 'Hồ sơ', show: true },
+  ];
+  const visible = tabs.filter(t => t.show);
+  // Open on the step that waits for this actor; fall back when that step disappears (e.g. after dispatching).
+  const [tab, setTab] = useState<Tab>(pending ? 'action' : 'impact');
+  const active = visible.some(t => t.id === tab) ? tab : 'impact';
+
   return <section className="panel incident-detail" aria-label="Chi tiết sự cố">
     <div className="panel-heading"><div><h2>{incident.asset.name} · {TYPE_LABELS[incident.incident_type]}</h2>
       <p>{incident.event ? `${incident.event.label} lúc ${formatAt(incident.event.at)}` : `Gây lỗi thủ công lúc ${formatAt(incident.alarm_at)}`} · mã {incident.id.slice(0, 8)}</p></div>
@@ -198,25 +217,41 @@ export function IncidentDetail({ incident, actor, actors, onChange }: { incident
       <div><dt>Tài sản</dt><dd>{incident.asset.id} ({incident.asset.type})</dd></div>
       <div><dt>Người tạo</dt><dd>{actorName(actors, incident.created_by)}</dd></div>
       <div><dt>Người xử lý</dt><dd>{incident.assignee ? actorName(actors, incident.assignee.id) : 'Chưa giao'}</dd></div>
-      {incident.decision_note && <div><dt>Quyết định</dt><dd>{incident.decision_note}</dd></div>}
-      {incident.next_step && <div><dt>Bước tiếp theo</dt><dd>{incident.next_step}</dd></div>}
+      {incident.decision_note && <div className="wide"><dt>Quyết định</dt><dd>{incident.decision_note}</dd></div>}
+      {incident.next_step && <div className="wide"><dt>Bước tiếp theo</dt><dd>{incident.next_step}</dd></div>}
     </dl>
-    {error && <p className="error-banner" role="alert">{error}</p>}
-    <ImpactPanel incident={incident} actor={actor} />
-    {actor.role === 'operator' && (incident.state === 'alert' || incident.state === 'unresolved') && <DispatchForm incident={incident} actor={actor} actors={actors} onChange={onChange} />}
-    {technician && incident.state === 'dispatched' && <button className="ghost-button" disabled={busy} onClick={start}>{busy ? 'Đang gửi…' : 'Nhận xử lý'}</button>}
-    {incident.state !== 'alert' && <GuidancePanel incident={incident} actor={actor} />}
-    {technician && incident.state !== 'resolved' && <AssistantPanel incident={incident} actor={actor} />}
-    {technician && incident.state === 'in_progress' && <ReportForm key={`report-${incident.reports.length}`} incident={incident} actor={actor} onChange={onChange} />}
-    {technician && incident.reports.length > 0 && <LessonForm incident={incident} actor={actor} />}
-    {incident.reports.length > 0 && <div className="detail-block"><h3>Báo cáo</h3>{incident.reports.map(r => <article key={r.index} className="report-record">
-      <strong>{r.outcome === 'fixed' ? 'Đã khắc phục' : 'Chưa khắc phục'} · {actorName(actors, r.actor_id)} · {formatAt(r.at)}</strong>
-      <p>{r.summary}</p>
-      {r.checks.length > 0 && <ul>{r.checks.map((c, i) => <li key={i}>{c.text}: {c.result}</li>)}</ul>}
-      {r.actions.length > 0 && <p className="muted">Thao tác: {r.actions.join('; ')}</p>}
-      {r.next_step && <p className="muted">Bước tiếp theo: {r.next_step}</p>}
-      {r.open_items.length > 0 && <p className="muted">Việc còn mở: {r.open_items.join('; ')}</p>}
-    </article>)}</div>}
-    <details className="detail-block"><summary>Lịch sử ({incident.history.length})</summary>{incident.history.map((h, i) => <p key={i}>{formatAt(h.at)} · {actorName(actors, h.actor_id)} · {ACTION_LABELS[h.action] ?? h.action} → {STATE_LABELS[h.to]}{h.note ? ` · ${h.note}` : ''}</p>)}</details>
+    <div className="tabs" role="tablist">
+      {visible.map(t => <button key={t.id} type="button" role="tab" aria-selected={active === t.id} className={`tab ${active === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}>
+        {t.label}{t.id === 'action' && pending && <i className="tab-dot" aria-label="cần thao tác" />}</button>)}
+    </div>
+    {/* Panels stay mounted while hidden so loaded guidance and half-filled forms survive tab switches. */}
+    <div role="tabpanel" hidden={active !== 'action'}>
+      {canDispatch && <DispatchForm incident={incident} actor={actor} actors={actors} onChange={onChange} />}
+      {canStart && <div className="detail-block form-block"><h3>Nhận việc</h3><p className="muted">Nhận xử lý để bắt đầu làm theo hướng dẫn và gửi báo cáo kết quả.</p>
+        {error && <p className="error-banner" role="alert">{error}</p>}
+        <button type="button" className="run-button" disabled={busy} onClick={start}>{busy ? 'Đang gửi…' : 'Nhận xử lý'}</button></div>}
+      {canReport && <ReportForm key={`report-${incident.reports.length}`} incident={incident} actor={actor} onChange={onChange} />}
+      {canPropose && <LessonForm incident={incident} actor={actor} />}
+    </div>
+    <div role="tabpanel" hidden={active !== 'impact'}><ImpactPanel incident={incident} actor={actor} /></div>
+    <div role="tabpanel" hidden={active !== 'guidance'}>
+      {incident.state !== 'alert' && <GuidancePanel incident={incident} actor={actor} />}
+      {technician && incident.state !== 'resolved' && <AssistantPanel incident={incident} actor={actor} />}
+    </div>
+    <div role="tabpanel" hidden={active !== 'records'}>
+      <div className="detail-block"><h3>Báo cáo</h3>
+        {incident.reports.length === 0 && <p className="muted">Chưa có báo cáo.</p>}
+        {incident.reports.map(r => <article key={r.index} className={`report-record ${r.outcome}`}>
+          <strong>{r.outcome === 'fixed' ? 'Đã khắc phục' : 'Chưa khắc phục'} · {actorName(actors, r.actor_id)} · {formatAt(r.at)}</strong>
+          <p>{r.summary}</p>
+          {r.checks.length > 0 && <ul>{r.checks.map((c, i) => <li key={i}>{c.text}: {c.result}</li>)}</ul>}
+          {r.actions.length > 0 && <p className="muted">Thao tác: {r.actions.join('; ')}</p>}
+          {r.next_step && <p className="muted">Bước tiếp theo: {r.next_step}</p>}
+          {r.open_items.length > 0 && <p className="muted">Việc còn mở: {r.open_items.join('; ')}</p>}
+        </article>)}
+      </div>
+      <div className="detail-block"><h3>Lịch sử</h3><ol className="timeline">{incident.history.map((h, i) => <li key={i}>
+        <time>{formatAt(h.at)}</time><span><b>{ACTION_LABELS[h.action] ?? h.action}</b> → {STATE_LABELS[h.to]} · {actorName(actors, h.actor_id)}{h.note ? ` · ${h.note}` : ''}</span></li>)}</ol></div>
+    </div>
   </section>;
 }

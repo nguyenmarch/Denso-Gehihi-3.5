@@ -71,6 +71,12 @@ def test_recommendation_context():
     assert "EQ_OVEN_01" in actions["CONTEXT"]
 
 
+def test_recommendation_does_not_reuse_another_assets_playbook():
+    actions = RecommendationService().get_actions("MACHINE_BREAKDOWN", {"node_id": "EQ_PACK_01"})
+    assert set(actions) == {"CONTEXT"}
+    assert "EQ_PACK_01" in actions["CONTEXT"] and "EQ_OVEN_01" in actions["CONTEXT"]
+
+
 @pytest.mark.asyncio
 async def test_forward_impact_applies_decay_shortest_distance_and_stable_order():
     session = FakeSession(

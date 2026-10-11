@@ -4,6 +4,13 @@
 export const INCIDENT_TYPES = ['MACHINE_BREAKDOWN', 'MATERIAL_DEFECT', 'CYCLE_TIME_SPIKE'] as const;
 export type IncidentType = (typeof INCIDENT_TYPES)[number];
 
+// backend app/models/playbooks.py ORIGIN_TYPES: node labels an incident (not a what-if simulation) may originate from.
+export const ORIGIN_TYPES: Record<IncidentType, string[]> = {
+  MACHINE_BREAKDOWN: ['Equipment'],
+  CYCLE_TIME_SPIKE: ['Equipment'],
+  MATERIAL_DEFECT: ['ProcessStep', 'Batch'],
+};
+
 export const SEVERITY_MIN = 0.1;
 export const SEVERITY_MAX = 1.0;
 
