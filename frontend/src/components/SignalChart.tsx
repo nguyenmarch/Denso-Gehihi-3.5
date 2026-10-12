@@ -1,3 +1,4 @@
+import { tr, locale } from '../i18n';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { SignalMeta } from '../services/api';
 import { formatClock, formatValue } from './labels';
@@ -94,8 +95,8 @@ export function SignalChart({ signal, t, values, running, start, end, hoverT, on
 
   const present = values.filter((v): v is number => v !== null);
   const summary = present.length
-    ? `${signal.label}: thấp nhất ${Math.min(...present).toFixed(signal.decimals)}, cao nhất ${Math.max(...present).toFixed(signal.decimals)} ${signal.unit}; ngưỡng cảnh báo ${signal.warn}, nguy hiểm ${signal.crit}.`
-    : `${signal.label}: không có dữ liệu trong khoảng này.`;
+    ? tr("{0}: thấp nhất {1}, cao nhất {2} {3}; ngưỡng cảnh báo {4}, nguy hiểm {5}.", signal.label, Math.min(...present).toFixed(signal.decimals), Math.max(...present).toFixed(signal.decimals), signal.unit, signal.warn, signal.crit)
+    : tr("{0}: không có dữ liệu trong khoảng này.", signal.label);
 
   return <div className="signal-chart" ref={box}>
     <svg width={width} height={HEIGHT} role="img" aria-label={summary} onPointerMove={move} onPointerLeave={() => onHover(null)}>
@@ -104,14 +105,14 @@ export function SignalChart({ signal, t, values, running, start, end, hoverT, on
         <text className="chart-axis" x={M.left - 8} y={y(v) + 4} textAnchor="end">{v}</text>
       </g>)}
       {timeTicks(start, end).map(v => <text key={v} className="chart-axis" x={x(v)} y={HEIGHT - 6} textAnchor="middle">
-        {new Date(v).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</text>)}
+        {new Date(v).toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' })}</text>)}
 
       {stops.map(([a, b]) => <rect key={a} className="chart-stopped" x={clampX(a)} y={M.top} width={Math.max(2, clampX(b) - clampX(a))} height={plotH} />)}
       {highlight && <rect className="chart-highlight" x={clampX(highlight.start)} y={M.top} width={Math.max(2, clampX(highlight.end) - clampX(highlight.start))} height={plotH} />}
 
-      {([['crit', 'Nguy hiểm'], ['warn', 'Cảnh báo']] as const).map(([key, text]) => <g key={key}>
+      {([['crit', tr("Nguy hiểm")], ['warn', tr("Cảnh báo")]] as const).map(([key, text]) => <g key={key}>
         <line className={`chart-threshold ${key}`} x1={M.left} x2={M.left + plotW} y1={y(signal[key])} y2={y(signal[key])} />
-        <text className="chart-axis" x={M.left + plotW + 6} y={y(signal[key]) + 4}>{text} {signal[key]}</text>
+        <text className="chart-axis" x={M.left + plotW + 6} y={y(signal[key]) + 4}>{tr(text)} {signal[key]}</text>
       </g>)}
 
       <path className="chart-line" d={path} />
@@ -123,7 +124,7 @@ export function SignalChart({ signal, t, values, running, start, end, hoverT, on
     </svg>
     {index >= 0 && <div className="chart-tooltip" style={{ left: Math.min(x(t[index]) + 10, width - 150), top: M.top }}>
       <small>{formatClock(t[index])}</small>
-      <strong>{hoverValue === null ? 'Máy dừng' : formatValue(hoverValue, signal.decimals, signal.unit)}</strong>
+      <strong>{hoverValue === null ? tr("Máy dừng") : formatValue(hoverValue, signal.decimals, signal.unit)}</strong>
     </div>}
   </div>;
 }

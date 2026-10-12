@@ -1,3 +1,4 @@
+import { tr } from '../i18n';
 import { useEffect, useState } from 'react';
 import { AlertOctagon, AlertTriangle, CheckCircle2, LoaderCircle, PauseCircle, RefreshCw } from 'lucide-react';
 import { Actor, listMachines, MachineState, MachineSummary, toApiError } from '../services/api';
@@ -10,7 +11,7 @@ export const STATE_ICONS: Record<MachineState, typeof CheckCircle2> = { normal: 
 
 export function MachineStatePill({ state }: { state: MachineState }) {
   const Icon = STATE_ICONS[state];
-  return <span className={`machine-pill ${state}`}><Icon size={13} />{MACHINE_STATE_LABELS[state]}</span>;
+  return <span className={`machine-pill ${state}`}><Icon size={13} />{tr(MACHINE_STATE_LABELS[state])}</span>;
 }
 
 export function MachineList({ actor, onOpen }: { actor: Actor; onOpen: (id: string) => void }) {
@@ -29,11 +30,11 @@ export function MachineList({ actor, onOpen }: { actor: Actor; onOpen: (id: stri
   }, [actor, reload]);
 
   if (!machines) return error
-    ? <div className="error-banner top-banner" role="alert"><span>{error}</span><button type="button" className="ghost-button" onClick={() => setReload(n => n + 1)}><RefreshCw size={13} /> Thử lại</button></div>
-    : <div className="state-box compact"><LoaderCircle size={18} className="spin" /><p>Đang tải danh sách máy…</p></div>;
+    ? <div className="error-banner top-banner" role="alert"><span>{tr(error)}</span><button type="button" className="ghost-button" onClick={() => setReload(n => n + 1)}><RefreshCw size={13} />{tr("Thử lại")}</button></div>
+    : <div className="state-box compact"><LoaderCircle size={18} className="spin" /><p>{tr("Đang tải danh sách máy…")}</p></div>;
 
   return <>
-    {error && <div className="error-banner top-banner" role="alert"><span>Mất kết nối, đang hiển thị dữ liệu cũ: {error}</span></div>}
+    {error && <div className="error-banner top-banner" role="alert"><span>{tr("Mất kết nối, đang hiển thị dữ liệu cũ:")}{" "}{tr(error)}</span></div>}
     <div className="machine-grid">
       {machines.map(m => {
         const main = m.signals.find(s => s.key === m.spark.signal);
@@ -43,12 +44,12 @@ export function MachineList({ actor, onOpen }: { actor: Actor; onOpen: (id: stri
             <MachineStatePill state={m.state} />
           </div>
           <dl className="machine-values">
-            {m.signals.map(s => <div key={s.key} className={s.level}><dt>{s.label}</dt><dd>{formatValue(s.value, s.decimals, s.unit)}</dd></div>)}
+            {m.signals.map(s => <div key={s.key} className={s.level}><dt>{tr(s.label)}</dt><dd>{formatValue(s.value, s.decimals, s.unit)}</dd></div>)}
           </dl>
-          <div className="machine-spark"><Sparkline values={m.spark.values} /><small>{main?.label} · 15 phút</small></div>
+          <div className="machine-spark"><Sparkline values={m.spark.values} /><small>{tr(main?.label ?? "")}{" "}{tr("· 15 phút")}</small></div>
           <p className="machine-foot">
-            {m.open_events > 0 ? <b>{m.open_events} bất thường đang diễn ra</b>
-              : m.last_event ? `Bất thường gần nhất ${formatClock(m.last_event.started_at)}` : 'Chưa ghi nhận bất thường'}
+            {m.open_events > 0 ? <b>{m.open_events}{" "}{tr("bất thường đang diễn ra")}</b>
+              : m.last_event ? tr("Bất thường gần nhất {0}", formatClock(m.last_event.started_at)) : tr("Chưa ghi nhận bất thường")}
           </p>
         </button>;
       })}

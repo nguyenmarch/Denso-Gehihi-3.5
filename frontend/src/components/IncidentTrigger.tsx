@@ -1,3 +1,4 @@
+import { tr } from '../i18n';
 import React, { useMemo } from 'react';
 import { ArrowRight, Flame, Gauge, LoaderCircle, MousePointerClick, PackageSearch } from 'lucide-react';
 import { GraphNode, INCIDENT_TYPES, IncidentType, SEVERITY_MAX, SEVERITY_MIN } from '../types';
@@ -29,7 +30,7 @@ export const NodeSelect: React.FC<{ nodes: GraphNode[]; value: string; onChange:
   }, [nodes]);
   return (
     <select value={nodes.some(n => n.id === value) ? value : ''} disabled={!nodes.length || disabled} onChange={e => onChange(e.target.value)}>
-      <option value="" disabled>{nodes.length ? 'Chọn node…' : 'Chưa tải node'}</option>
+      <option value="" disabled>{nodes.length ? tr("Chọn node…") : tr("Chưa tải node")}</option>
       {groups.map(([label, list]) => (
         <optgroup key={label} label={label}>
           {list.map(n => <option key={n.id} value={n.id}>{n.id}{typeof n.properties.name === 'string' ? ` — ${n.properties.name}` : ''}</option>)}
@@ -55,10 +56,10 @@ interface IncidentTriggerProps {
 export const IncidentTrigger: React.FC<IncidentTriggerProps> = ({ nodes, nodeId, incidentType, severity, onNodeChange, onIncidentTypeChange, onSeverityChange, onRunSimulation, loading = false, disabledReason }) => {
   const nodeIds = useMemo(() => new Set(nodes.map(n => n.id)), [nodes]);
   const validationError =
-    !nodeId ? 'Chọn node gốc (dropdown hoặc click trên graph).'
-    : !nodeIds.has(nodeId) ? `Node ${nodeId} không có trong topology.`
-    : !INCIDENT_TYPES.includes(incidentType) ? 'Loại sự cố không hợp lệ.'
-    : !(severity >= SEVERITY_MIN && severity <= SEVERITY_MAX) ? `Mức độ phải trong khoảng ${SEVERITY_MIN}–${SEVERITY_MAX}.`
+    !nodeId ? tr("Chọn node gốc (dropdown hoặc click trên graph).")
+    : !nodeIds.has(nodeId) ? tr("Node {0} không có trong topology.", nodeId)
+    : !INCIDENT_TYPES.includes(incidentType) ? tr("Loại sự cố không hợp lệ.")
+    : !(severity >= SEVERITY_MIN && severity <= SEVERITY_MAX) ? tr("Mức độ phải trong khoảng {0}–{1}.", SEVERITY_MIN, SEVERITY_MAX)
     : '';
   const blocked = !!disabledReason || !!validationError || loading;
 
@@ -71,28 +72,26 @@ export const IncidentTrigger: React.FC<IncidentTriggerProps> = ({ nodes, nodeId,
           const available = nodeIds.has(s.nodeId);
           const selected = nodeId === s.nodeId && incidentType === s.type;
           return (
-            <button key={s.nodeId} type="button" disabled={!available || loading} title={available ? `${s.nodeId} · ${s.type}` : `${s.nodeId} không có trong graph`}
+            <button key={s.nodeId} type="button" disabled={!available || loading} title={available ? `${s.nodeId} · ${s.type}` : tr("{0} không có trong graph", s.nodeId)}
               className={`scenario-option ${selected ? 'selected' : ''}`} onClick={() => { onNodeChange(s.nodeId); onIncidentTypeChange(s.type); }}>
               <span className={`scenario-icon ${s.tone}`}>{s.icon}</span>
-              <span><b>{s.title}</b><small>{s.hint} · {s.nodeId}</small></span><i />
+              <span><b>{tr(s.title)}</b><small>{tr(s.hint)} · {s.nodeId}</small></span><i />
             </button>
           );
         })}
       </div>
       <div className="trigger-controls">
-        <label className="field-label">NODE GỐC
-          <NodeSelect nodes={nodes} value={nodeId} onChange={onNodeChange} disabled={loading} />
+        <label className="field-label">{tr("NODE GỐC")}{" "}<NodeSelect nodes={nodes} value={nodeId} onChange={onNodeChange} disabled={loading} />
         </label>
-        <label className="field-label">LOẠI SỰ CỐ
-          <select value={incidentType} disabled={loading} onChange={e => onIncidentTypeChange(e.target.value as IncidentType)}>
-            {INCIDENT_TYPES.map(t => <option key={t} value={t}>{TYPE_LABELS[t]}</option>)}
+        <label className="field-label">{tr("LOẠI SỰ CỐ")}{" "}<select value={incidentType} disabled={loading} onChange={e => onIncidentTypeChange(e.target.value as IncidentType)}>
+            {INCIDENT_TYPES.map(t => <option key={t} value={t}>{tr(TYPE_LABELS[t])}</option>)}
           </select>
         </label>
-        <label className="severity-control"><span className="field-label">MỨC ĐỘ <b>{severity.toFixed(1)}</b></span>
+        <label className="severity-control"><span className="field-label">{tr("MỨC ĐỘ")}{" "}<b>{severity.toFixed(1)}</b></span>
           <input type="range" min={SEVERITY_MIN} max={SEVERITY_MAX} step="0.1" value={severity} disabled={loading} onChange={e => onSeverityChange(Number(e.target.value))} />
         </label>
         <button type="button" className="run-button" disabled={blocked} onClick={run}>
-          {loading ? <><LoaderCircle size={16} className="spin" /> Đang phân tích…</> : <>Chạy mô phỏng <ArrowRight size={17} /></>}
+          {loading ? <><LoaderCircle size={16} className="spin" />{tr("Đang phân tích…")}</> : <>{tr("Chạy mô phỏng")}{" "}<ArrowRight size={17} /></>}
         </button>
       </div>
       {(disabledReason || validationError) && (

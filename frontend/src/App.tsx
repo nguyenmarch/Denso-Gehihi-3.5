@@ -1,3 +1,4 @@
+import { tr, locale, useLanguage, setLanguage, Language } from './i18n';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Activity, AlertTriangle, Boxes, BrainCircuit, CheckCircle2, ClipboardList, GitBranch, GraduationCap, LoaderCircle, Network, RefreshCw, Wifi, WifiOff } from 'lucide-react';
 import { IncidentTrigger } from './components/IncidentTrigger';
@@ -56,10 +57,11 @@ const writeParam = (name: string, value: string) => {
 };
 const readView = (): View => { const v = readParam('view'); return v === 'machines' || v === 'graph' || v === 'lessons' ? v : 'incidents'; };
 
-const formatTime = (d: Date) => d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+const formatTime = (d: Date) => d.toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(-2).map(w => w[0]).join('').toUpperCase();
 
 export const App: React.FC = () => {
+  const language = useLanguage();
   const [topology, setTopology] = useState<Remote<GraphTopology>>({ status: 'loading' });
   const [health, setHealth] = useState<Remote<HealthStatus>>({ status: 'loading' });
   const [selectedNodeId, setSelectedNodeId] = useState('');
@@ -177,14 +179,14 @@ export const App: React.FC = () => {
 
   const backendDown = health.status === 'error';
   const dbDown = health.status === 'ready' && health.data.status !== 'ok';
-  const statusText = health.status === 'loading' ? 'Đang kiểm tra backend…' : backendDown ? 'Không kết nối được backend' : dbDown ? 'Neo4j không sẵn sàng' : 'Backend & Neo4j đã kết nối';
+  const statusText = health.status === 'loading' ? tr("Đang kiểm tra backend…") : backendDown ? tr("Không kết nối được backend") : dbDown ? tr("Neo4j không sẵn sàng") : tr("Backend & Neo4j đã kết nối");
   const statusTone = health.status === 'loading' ? 'idle' : backendDown || dbDown ? 'bad' : 'good';
 
   const disabledReason =
-    backendDown || dbDown ? 'Backend hoặc Neo4j chưa sẵn sàng.'
-    : topology.status === 'loading' ? 'Đang tải topology…'
-    : topology.status === 'error' ? 'Cần tải được topology trước khi mô phỏng.'
-    : nodes.length === 0 ? 'Graph trống — hãy chạy migration và seed Neo4j.'
+    backendDown || dbDown ? tr("Backend hoặc Neo4j chưa sẵn sàng.")
+    : topology.status === 'loading' ? tr("Đang tải topology…")
+    : topology.status === 'error' ? tr("Cần tải được topology trước khi mô phỏng.")
+    : nodes.length === 0 ? tr("Graph trống — hãy chạy migration và seed Neo4j.")
     : undefined;
 
   const maxHop = shown?.impacted_nodes.reduce((m, n) => Math.max(m, n.distance), 0);
@@ -196,33 +198,30 @@ export const App: React.FC = () => {
 
   const heading: Record<View, [string, string]> = {
     incidents: [
-      role === 'technician' ? 'Việc của tôi' : role === 'expert' ? 'Hồ sơ sự cố' : 'Điều phối sự cố',
-      role === 'technician' ? 'Nhận việc, làm theo hướng dẫn và báo cáo kết quả.' : 'Theo dõi sự cố trên dây chuyền và quyết định xử lý.',
+      role === 'technician' ? tr("Việc của tôi") : role === 'expert' ? tr("Hồ sơ sự cố") : tr("Điều phối sự cố"),
+      role === 'technician' ? tr("Nhận việc, làm theo hướng dẫn và báo cáo kết quả.") : tr("Theo dõi sự cố trên dây chuyền và quyết định xử lý."),
     ],
-    machines: machineId ? ['Hoạt động máy', 'Tín hiệu theo thời gian thực và các lần bất thường phát hiện từ dữ liệu.'] : ['Giám sát máy', 'Trạng thái từng máy, tính từ dữ liệu tín hiệu. Chọn một máy để xem chi tiết.'],
-    graph: ['Knowledge graph & mô phỏng', 'Theo dõi sự cố lan truyền qua graph chuỗi sản xuất.'],
-    lessons: ['Duyệt bài học', 'Bài học từ báo cáo kỹ thuật chỉ vào hướng dẫn sau khi chuyên gia chấp nhận.'],
+    machines: machineId ? [tr("Hoạt động máy"), tr("Tín hiệu theo thời gian thực và các lần bất thường phát hiện từ dữ liệu.")] : [tr("Giám sát máy"), tr("Trạng thái từng máy, tính từ dữ liệu tín hiệu. Chọn một máy để xem chi tiết.")],
+    graph: [tr("Knowledge graph & mô phỏng"), tr("Theo dõi sự cố lan truyền qua graph chuỗi sản xuất.")],
+    lessons: [tr("Duyệt bài học"), tr("Bài học từ báo cáo kỹ thuật chỉ vào hướng dẫn sau khi chuyên gia chấp nhận.")],
   };
 
   return (
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand" aria-label="DENSO — Crafting the Core"><strong>DENSO</strong><small>Crafting the Core</small></div>
-        <nav aria-label="Không gian làm việc">
-          <p className="nav-label">KHÔNG GIAN LÀM VIỆC</p>
+        <nav aria-label={tr("Không gian làm việc")}>
+          <p className="nav-label">{tr("KHÔNG GIAN LÀM VIỆC")}</p>
           <button type="button" className={`nav-item ${view === 'incidents' ? 'active' : ''}`} onClick={() => openView('incidents')}>
             <ClipboardList size={17} /> {heading.incidents[0]}
-            {waiting > 0 && <span className="nav-count alert" title={`${waiting} sự cố đang chờ bạn xử lý`}>{waiting}</span>}
+            {waiting > 0 && <span className="nav-count alert" title={tr("{0} sự cố đang chờ bạn xử lý", waiting)}>{waiting}</span>}
           </button>
           {views.includes('machines') && <button type="button" className={`nav-item ${view === 'machines' ? 'active' : ''}`} onClick={() => { openView('machines'); openMachine(''); }}>
-            <Activity size={17} /> Giám sát máy
-          </button>}
+            <Activity size={17} />{tr("Giám sát máy")}{" "}</button>}
           {views.includes('graph') && <button type="button" className={`nav-item ${view === 'graph' ? 'active' : ''}`} onClick={() => openView('graph')}>
-            <Network size={17} /> Graph & mô phỏng
-          </button>}
+            <Network size={17} />{tr("Graph & mô phỏng")}{" "}</button>}
           {views.includes('lessons') && <button type="button" className={`nav-item ${view === 'lessons' ? 'active' : ''}`} onClick={() => openView('lessons')}>
-            <GraduationCap size={17} /> Duyệt bài học
-          </button>}
+            <GraduationCap size={17} />{tr("Duyệt bài học")}{" "}</button>}
         </nav>
 
         <div className="sidebar-bottom">
@@ -230,28 +229,35 @@ export const App: React.FC = () => {
           <div className="user-card">
             <div className="avatar">{actor ? initials(actor.name) : 'DM'}</div>
             {actor
-              ? <label className="actor-picker"><small>Vai trò demo</small><select aria-label="Actor demo" value={actor.id} onChange={e => changeActor(e.target.value)}>
-                  {(Object.keys(ROLE_LABELS) as Role[]).map(r => <optgroup key={r} label={ROLE_LABELS[r]}>{actorList.filter(a => a.role === r).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</optgroup>)}
+              ? <label className="actor-picker"><small>{tr("Vai trò demo")}</small><select aria-label="Actor demo" value={actor.id} onChange={e => changeActor(e.target.value)}>
+                  {(Object.keys(ROLE_LABELS) as Role[]).map(r => <optgroup key={r} label={tr(ROLE_LABELS[r])}>{actorList.filter(a => a.role === r).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</optgroup>)}
                 </select></label>
-              : <div><strong>Chế độ demo</strong><small>{actors.status === 'loading' ? 'Đang tải actor…' : 'Chưa có actor'}</small></div>}
+              : <div><strong>{tr("Chế độ demo")}</strong><small>{actors.status === 'loading' ? tr("Đang tải actor…") : tr("Chưa có actor")}</small></div>}
           </div>
+          <label className="language-picker">
+            <small>{tr('Ngôn ngữ')}</small>
+            <select aria-label="Ngôn ngữ / Language" value={language} onChange={event => setLanguage(event.target.value as Language)}>
+              <option value="vi">Tiếng Việt</option>
+              <option value="en">English</option>
+            </select>
+          </label>
         </div>
       </aside>
 
       <main className="main-content">
         <header className="topbar">
-          <div><p className="eyebrow">{new Date().toLocaleDateString('vi-VN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }).toUpperCase()}</p><h1>{heading[view][0]}</h1><p className="subheading">{heading[view][1]}</p></div>
+          <div><p className="eyebrow">{new Date().toLocaleDateString(locale(), { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }).toUpperCase()}</p><h1>{heading[view][0]}</h1><p className="subheading">{heading[view][1]}</p></div>
           <div className="top-actions"><SyncStatus lastSync={lastSync} /></div>
         </header>
 
         {(backendDown || dbDown) && (
           <div className="error-banner top-banner" role="alert"><WifiOff size={16} />
-            <span>{backendDown ? health.error.message : 'Backend đang chạy nhưng Neo4j chưa sẵn sàng (/health = degraded). Topology và mô phỏng sẽ lỗi cho tới khi Neo4j kết nối lại.'}</span>
-            <button type="button" className="ghost-button" onClick={() => { loadHealth(); loadTopology(); }}><RefreshCw size={13} /> Thử lại</button>
+            <span>{backendDown ? tr(health.error.message) : tr("Backend đang chạy nhưng Neo4j chưa sẵn sàng (/health = degraded). Topology và mô phỏng sẽ lỗi cho tới khi Neo4j kết nối lại.")}</span>
+            <button type="button" className="ghost-button" onClick={() => { loadHealth(); loadTopology(); }}><RefreshCw size={13} />{tr("Thử lại")}</button>
           </div>
         )}
-        {actors.status === 'loading' && <div className="state-box compact"><LoaderCircle size={18} className="spin" /><p>Đang tải danh sách actor demo…</p></div>}
-        {actors.status === 'error' && <div className="error-banner top-banner" role="alert"><AlertTriangle size={16} /><span>{actors.error.message}</span><button type="button" className="ghost-button" onClick={loadActors}><RefreshCw size={13} /> Thử lại</button></div>}
+        {actors.status === 'loading' && <div className="state-box compact"><LoaderCircle size={18} className="spin" /><p>{tr("Đang tải danh sách actor demo…")}</p></div>}
+        {actors.status === 'error' && <div className="error-banner top-banner" role="alert"><AlertTriangle size={16} /><span>{tr(actors.error.message)}</span><button type="button" className="ghost-button" onClick={loadActors}><RefreshCw size={13} />{tr("Thử lại")}</button></div>}
 
         {/* Stays mounted while hidden: the board's polling feeds alerts to the graph, and open forms keep their input. */}
         {actor && <div className="workspace-grid" hidden={view !== 'incidents'}>
@@ -259,7 +265,7 @@ export const App: React.FC = () => {
             nodes={nodes} nodeId={selectedNodeId} incidentType={incidentType} severity={severity}
             onNodeChange={setSelectedNodeId} onIncidentTypeChange={setIncidentType} onSeverityChange={changeSeverity} onSynced={setLastSync} />
           {selectedIncident ? <IncidentDetail key={`${selectedIncident.id}:${actor.id}`} incident={selectedIncident} actor={actor} actors={actorList} onChange={upsertIncident} />
-            : <section className="panel incident-detail empty"><div className="state-box"><ClipboardList size={26} /><strong>{incidentId && incidents.length ? 'Sự cố đang mở không thuộc danh sách của vai trò này' : 'Chưa chọn sự cố'}</strong><p>Chọn một sự cố ở danh sách bên trái để xem tác động, hướng dẫn và thao tác.</p></div></section>}
+            : <section className="panel incident-detail empty"><div className="state-box"><ClipboardList size={26} /><strong>{incidentId && incidents.length ? tr("Sự cố đang mở không thuộc danh sách của vai trò này") : tr("Chưa chọn sự cố")}</strong><p>{tr("Chọn một sự cố ở danh sách bên trái để xem tác động, hướng dẫn và thao tác.")}</p></div></section>}
         </div>}
 
         {actor && view === 'machines' && (machineId
@@ -270,44 +276,46 @@ export const App: React.FC = () => {
 
         {view === 'graph' && <>
           <section className="kpi-grid">
-            <div className="kpi-card"><div className="kpi-icon"><Boxes size={18} /></div><span>NODE TRONG GRAPH</span><strong>{stats ? graph!.nodes.length : '—'}</strong><small>{stats ? `${stats.byLabel.ProcessStep ?? 0} công đoạn · ${stats.byLabel.Equipment ?? 0} thiết bị · ${stats.byLabel.Batch ?? 0} lô` : 'Chưa tải topology'}</small></div>
-            <div className="kpi-card"><div className="kpi-icon violet"><GitBranch size={18} /></div><span>QUAN HỆ</span><strong>{stats ? graph!.edges.length : '—'}</strong><small>{stats ? <><b>{stats.propagationEdges}</b> đường lan truyền</> : 'Chưa tải topology'}</small></div>
-            <div className="kpi-card"><div className="kpi-icon amber"><AlertTriangle size={18} /></div><span>NODE BỊ ẢNH HƯỞNG</span><strong>{shown ? shown.impacted_nodes.length : '—'}</strong><small>{shown ? (shown.impacted_nodes.length ? <>tối đa <b className="warning">{maxHop}</b> bước từ {shown.origin_id}</> : `không lan xuống sau ${shown.origin_id}`) : 'Chưa có sự cố hoặc mô phỏng'}</small></div>
-            <div className="kpi-card"><div className="kpi-icon green"><ClipboardList size={18} /></div><span>SỰ CỐ ĐANG MỞ</span><strong>{lastSync ? openIncidents.length : '—'}</strong><small>{lastSync ? <><b className={alertCount ? 'warning' : ''}>{alertCount}</b> cảnh báo chưa giao việc</> : 'Chưa tải danh sách sự cố'}</small></div>
+            <div className="kpi-card"><div className="kpi-icon"><Boxes size={18} /></div><span>{tr("NODE TRONG GRAPH")}</span><strong>{stats ? graph!.nodes.length : '—'}</strong><small>{stats ? tr("{0} công đoạn · {1} thiết bị · {2} lô", stats.byLabel.ProcessStep ?? 0, stats.byLabel.Equipment ?? 0, stats.byLabel.Batch ?? 0) : tr("Chưa tải topology")}</small></div>
+            <div className="kpi-card"><div className="kpi-icon violet"><GitBranch size={18} /></div><span>{tr("QUAN HỆ")}</span><strong>{stats ? graph!.edges.length : '—'}</strong><small>{stats ? <><b>{stats.propagationEdges}</b>{" "}{tr("đường lan truyền")}</> : tr("Chưa tải topology")}</small></div>
+            <div className="kpi-card"><div className="kpi-icon amber"><AlertTriangle size={18} /></div><span>{tr("NODE BỊ ẢNH HƯỞNG")}</span><strong>{shown ? shown.impacted_nodes.length : '—'}</strong><small>{shown ? (shown.impacted_nodes.length ? <>{tr("tối đa")}{" "}<b className="warning">{maxHop}</b>{" "}{tr("bước từ")}{" "}{shown.origin_id}</> : tr("không lan xuống sau {0}", shown.origin_id)) : tr("Chưa có sự cố hoặc mô phỏng")}</small></div>
+            <div className="kpi-card"><div className="kpi-icon green"><ClipboardList size={18} /></div><span>{tr("SỰ CỐ ĐANG MỞ")}</span><strong>{lastSync ? openIncidents.length : '—'}</strong><small>{lastSync ? <><b className={alertCount ? 'warning' : ''}>{alertCount}</b>{" "}{tr("cảnh báo chưa giao việc")}</> : tr("Chưa tải danh sách sự cố")}</small></div>
           </section>
 
           <section className="panel graph-panel">
             <div className="panel-heading">
-              <div><div className="heading-row"><h2>Topology lan truyền</h2><span className="tag blue-tag">NEO4J</span></div><p>Click một node để chọn làm điểm phát sinh sự cố.</p></div>
+              <div><div className="heading-row"><h2>{tr("Topology lan truyền")}</h2><span className="tag blue-tag">NEO4J</span></div><p>{tr("Click một node để chọn làm điểm phát sinh sự cố.")}</p></div>
               <div className="graph-legend">
-                {legend.map(([label, swatch, text]) => <span key={label}><i className={`legend-dot ${swatch}`} />{text}</span>)}
-                {shown && shown.impacted_nodes.length > 0 && <span><i className="legend-dot impacted" />Bị ảnh hưởng</span>}
+                {legend.map(([label, swatch, text]) => <span key={label}><i className={`legend-dot ${swatch}`} />{tr(text)}</span>)}
+                <span><i className="legend-dot selected" />{tr('Đang chọn')}</span>
+                {shown && <span><i className="legend-dot origin" />{tr('Điểm phát sinh')}</span>}
+                {shown && shown.impacted_nodes.length > 0 && <span><i className="legend-dot impacted" />{tr("Bị ảnh hưởng")}</span>}
               </div>
             </div>
             <div className="graph-wrap">
-              {topology.status === 'loading' && <div className="state-box"><LoaderCircle size={22} className="spin" /><strong>Đang tải topology…</strong><p>GET /graph/topology</p></div>}
-              {topology.status === 'error' && <div className="state-box error" role="alert"><AlertTriangle size={22} /><strong>Không tải được topology</strong><p>{topology.error.message}</p><button type="button" className="ghost-button" onClick={loadTopology}><RefreshCw size={13} /> Thử lại</button></div>}
-              {graph && graph.nodes.length === 0 && <div className="state-box"><Boxes size={22} /><strong>Graph chưa có dữ liệu</strong><p>Chạy migration và seed trong <code>backend/data/</code> (xem docs/runbook.md), rồi tải lại.</p><button type="button" className="ghost-button" onClick={loadTopology}><RefreshCw size={13} /> Tải lại</button></div>}
+              {topology.status === 'loading' && <div className="state-box"><LoaderCircle size={22} className="spin" /><strong>{tr("Đang tải topology…")}</strong><p>GET /graph/topology</p></div>}
+              {topology.status === 'error' && <div className="state-box error" role="alert"><AlertTriangle size={22} /><strong>{tr("Không tải được topology")}</strong><p>{tr(topology.error.message)}</p><button type="button" className="ghost-button" onClick={loadTopology}><RefreshCw size={13} />{tr("Thử lại")}</button></div>}
+              {graph && graph.nodes.length === 0 && <div className="state-box"><Boxes size={22} /><strong>{tr("Graph chưa có dữ liệu")}</strong><p>{tr("Chạy migration và seed trong")}{" "}<code>backend/data/</code>{" "}{tr("(xem docs/runbook.md), rồi tải lại.")}</p><button type="button" className="ghost-button" onClick={loadTopology}><RefreshCw size={13} />{tr("Tải lại")}</button></div>}
               {graph && graph.nodes.length > 0 && (
-                <ErrorBoundary title="Không thể vẽ graph">
+                <ErrorBoundary title={tr("Không thể vẽ graph")}>
                   <GraphCanvas topology={graph} impactedNodes={shown?.impacted_nodes} originId={shown?.origin_id} selectedId={selectedNodeId} onNodeClick={setSelectedNodeId} />
                 </ErrorBoundary>
               )}
             </div>
             <div className="graph-footer">
-              <span>{graph ? <><Wifi size={14} /> {graph.nodes.length} node · {graph.edges.length} quan hệ từ API</> : <><WifiOff size={14} /> Chưa đồng bộ</>}</span>
-              <span>Đang chọn <b>{selectedNodeId ? nodeName(selectedNodeId) : '—'}</b></span>
-              {shown && <span>Đang hiển thị <b>{shown.origin_id}</b> · {shown.incident_type}</span>}
+              <span>{graph ? <><Wifi size={14} /> {graph.nodes.length} node · {graph.edges.length}{" "}{tr("quan hệ từ API")}</> : <><WifiOff size={14} />{tr("Chưa đồng bộ")}</>}</span>
+              <span>{tr("Đang chọn")}{" "}<b>{selectedNodeId ? nodeName(selectedNodeId) : '—'}</b></span>
+              {shown && <span>{tr("Đang hiển thị")}{" "}<b>{shown.origin_id}</b> · {shown.incident_type}</span>}
             </div>
           </section>
 
           <div className="analysis-grid">
             <section className="panel simulation-section">
-              <div className="section-title"><div><p className="eyebrow">PHÂN TÍCH WHAT-IF</p><h2>Mô phỏng sự cố</h2><p>Chỉ tính phạm vi ảnh hưởng, không tạo sự cố hay work order.</p></div><div className={`engine-state ${disabledReason ? 'idle' : ''}`}><span className="status-dot" /> {disabledReason ? 'Chưa thể mô phỏng' : 'Sẵn sàng mô phỏng'}</div></div>
+              <div className="section-title"><div><p className="eyebrow">{tr("PHÂN TÍCH WHAT-IF")}</p><h2>{tr("Mô phỏng sự cố")}</h2><p>{tr("Chỉ tính phạm vi ảnh hưởng, không tạo sự cố hay work order.")}</p></div><div className={`engine-state ${disabledReason ? 'idle' : ''}`}><span className="status-dot" /> {disabledReason ? tr("Chưa thể mô phỏng") : tr("Sẵn sàng mô phỏng")}</div></div>
               <IncidentTrigger nodes={nodes} nodeId={selectedNodeId} incidentType={incidentType} severity={severity} onNodeChange={setSelectedNodeId} onIncidentTypeChange={setIncidentType} onSeverityChange={changeSeverity} onRunSimulation={handleSimulate} loading={simLoading} disabledReason={disabledReason} />
               {latest?.error && (
                 <div className="error-banner" role="alert"><AlertTriangle size={16} />
-                  <span><b>Mô phỏng thất bại{latest.error.status ? ` (HTTP ${latest.error.status}${latest.error.code ? ` · ${latest.error.code}` : ''})` : ''}:</b> {latest.error.message}{lastSuccess ? ' Kết quả thành công gần nhất vẫn hiển thị trong nhật ký.' : ''}</span>
+                  <span><b>{tr("Mô phỏng thất bại")}{latest.error.status ? ` (HTTP ${latest.error.status}${latest.error.code ? ` · ${latest.error.code}` : ''})` : ''}:</b> {tr(latest.error.message)}{lastSuccess ? tr(" Kết quả thành công gần nhất vẫn hiển thị trong nhật ký.") : ''}</span>
                 </div>
               )}
             </section>
@@ -315,13 +323,13 @@ export const App: React.FC = () => {
             <div className="side-stack">
               {role === 'expert' && <ExpertInspector nodeId={selectedNodeId} />}
               <section className="panel activity-panel">
-                <div className="panel-heading"><div><h2>Nhật ký</h2><p>Sự cố & mô phỏng trong phiên này</p></div></div>
+                <div className="panel-heading"><div><h2>{tr("Nhật ký")}</h2><p>{tr("Sự cố & mô phỏng trong phiên này")}</p></div></div>
                 <div className="activity-list">
-                  {runs.length === 0 && <p className="empty-note">Chưa có sự cố hay lần mô phỏng nào.</p>}
+                  {runs.length === 0 && <p className="empty-note">{tr("Chưa có sự cố hay lần mô phỏng nào.")}</p>}
                   {runs.map(r => (
                     <div className="activity-item" key={r.id}>
                       <div className={`event-icon ${r.error ? 'red' : r.kind === 'alert' ? 'amber' : 'green'}`}>{r.error || r.kind === 'alert' ? <AlertTriangle size={15} /> : <CheckCircle2 size={15} />}</div>
-                      <div><strong>{r.kind === 'alert' ? 'Cảnh báo' : 'Mô phỏng'} · {r.type} · {r.nodeId}</strong><p>{r.error ? r.error.message : `${r.result!.impacted_nodes.length} node bị ảnh hưởng · mức ${r.severity.toFixed(1)}`}</p></div>
+                      <div><strong>{r.kind === 'alert' ? tr("Cảnh báo") : tr("Mô phỏng")} · {r.type} · {r.nodeId}</strong><p>{r.error ? tr(r.error.message) : tr("{0} node bị ảnh hưởng · mức {1}", r.result!.impacted_nodes.length, r.severity.toFixed(1))}</p></div>
                       <time>{formatTime(r.at)}</time>
                     </div>
                   ))}
@@ -334,13 +342,13 @@ export const App: React.FC = () => {
             <section className="panel results-section">
               <div className="result-banner">
                 <div className="result-icon"><BrainCircuit size={20} /></div>
-                <div><strong>Phạm vi ảnh hưởng · {nodeName(shown.origin_id)} ({shown.origin_id})</strong><p>{shown.incident_type} · mức {latest.severity.toFixed(1)} · {shown.impacted_nodes.length} node phía sau bị ảnh hưởng · {formatTime(latest.at)}</p></div>
-                <span className={`severity-badge ${shown.impacted_nodes.length ? '' : 'muted'}`}>{shown.impacted_nodes.length ? 'ĐÃ XÁC ĐỊNH ẢNH HƯỞNG' : 'KHÔNG LAN TRUYỀN'}</span>
+                <div><strong>{tr("Phạm vi ảnh hưởng ·")}{" "}{nodeName(shown.origin_id)} ({shown.origin_id})</strong><p>{shown.incident_type}{" "}{tr("· mức")}{" "}{latest.severity.toFixed(1)} · {shown.impacted_nodes.length}{" "}{tr("node phía sau bị ảnh hưởng ·")}{" "}{formatTime(latest.at)}</p></div>
+                <span className={`severity-badge ${shown.impacted_nodes.length ? '' : 'muted'}`}>{shown.impacted_nodes.length ? tr("ĐÃ XÁC ĐỊNH ẢNH HƯỞNG") : tr("KHÔNG LAN TRUYỀN")}</span>
               </div>
-              <ErrorBoundary title="Không thể hiển thị kết quả">
+              <ErrorBoundary title={tr("Không thể hiển thị kết quả")}>
                 {shown.impacted_nodes.length > 0
                   ? <ImpactTable nodes={shown.impacted_nodes} onSelect={setSelectedNodeId} />
-                  : <div className="state-box compact"><CheckCircle2 size={18} /><strong>Không có node downstream bị ảnh hưởng</strong><p>{shown.origin_id} không có quan hệ OPERATES_IN / FLOWS_TO / AFFECTS đi ra trong phạm vi max hops.</p></div>}
+                  : <div className="state-box compact"><CheckCircle2 size={18} /><strong>{tr("Không có node downstream bị ảnh hưởng")}</strong><p>{shown.origin_id}{" "}{tr("không có quan hệ OPERATES_IN / FLOWS_TO / AFFECTS đi ra trong phạm vi max hops.")}</p></div>}
                 <ActionMatrix key={latest.id} actions={shown.actions_by_department} departmentNames={departmentNames} />
               </ErrorBoundary>
             </section>

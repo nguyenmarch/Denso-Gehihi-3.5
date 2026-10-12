@@ -1,3 +1,4 @@
+import { tr } from '../i18n';
 import { useEffect, useState } from 'react';
 import { ArrowLeft, ExternalLink, Inbox, LoaderCircle } from 'lucide-react';
 import { Actor, getTelemetry, listMachineEvents, MachineAnomaly, MachineTelemetry, toApiError } from '../services/api';
@@ -9,7 +10,7 @@ const RANGES = [[15, '15 phút'], [60, '1 giờ'], [120, '2 giờ']] as const;
 
 interface MachineDetailProps { actor: Actor; machineId: string; onBack: () => void; onOpenIncident: (id: string) => void; }
 
-const eventTitle = (e: MachineAnomaly) => e.kind === 'stop' ? 'Dừng máy' : `${e.label} vượt ngưỡng ${e.level === 'critical' ? 'nguy hiểm' : 'cảnh báo'}`;
+const eventTitle = (e: MachineAnomaly) => e.kind === 'stop' ? tr("Dừng máy") : tr("{0} vượt ngưỡng {1}", e.label, e.level === 'critical' ? tr("nguy hiểm") : tr("cảnh báo"));
 
 export function MachineDetail({ actor, machineId, onBack, onOpenIncident }: MachineDetailProps) {
   const [minutes, setMinutes] = useState<number>(15);
@@ -45,25 +46,25 @@ export function MachineDetail({ actor, machineId, onBack, onOpenIncident }: Mach
 
   return <>
     <div className="machine-toolbar">
-      <button type="button" className="ghost-button" onClick={onBack}><ArrowLeft size={14} /> Danh sách máy</button>
+      <button type="button" className="ghost-button" onClick={onBack}><ArrowLeft size={14} />{tr("Danh sách máy")}</button>
       {data && <div className="machine-title"><h2>{data.machine.name}</h2><small>{data.machine.id} · {data.machine.step}</small><MachineStatePill state={data.machine.state} /></div>}
     </div>
-    {error && <div className="error-banner top-banner" role="alert"><span>{data ? `Mất kết nối, đang hiển thị dữ liệu cũ: ${error}` : error}</span></div>}
+    {error && <div className="error-banner top-banner" role="alert"><span>{data ? tr("Mất kết nối, đang hiển thị dữ liệu cũ: {0}", error) : error}</span></div>}
 
     <div className="machine-layout">
       <section className="panel machine-signals">
         <div className="panel-heading">
-          <div><h2>Tín hiệu hoạt động</h2><p>Mẫu mỗi {data?.step_seconds ?? 2} giây. Vùng xám là lúc máy dừng; vùng hồng là bất thường đang chọn.</p></div>
-          <div className="range-tabs" role="group" aria-label="Khoảng thời gian">
-            {RANGES.map(([m, text]) => <button key={m} type="button" className={m === minutes ? 'active' : ''} aria-pressed={m === minutes} onClick={() => setMinutes(m)}>{text}</button>)}
+          <div><h2>{tr("Tín hiệu hoạt động")}</h2><p>{tr("Mẫu mỗi")}{" "}{data?.step_seconds ?? 2}{" "}{tr("giây. Vùng xám là lúc máy dừng; vùng hồng là bất thường đang chọn.")}</p></div>
+          <div className="range-tabs" role="group" aria-label={tr("Khoảng thời gian")}>
+            {RANGES.map(([m, text]) => <button key={m} type="button" className={m === minutes ? 'active' : ''} aria-pressed={m === minutes} onClick={() => setMinutes(m)}>{tr(text)}</button>)}
           </div>
         </div>
-        {!data && !error && <div className="state-box"><LoaderCircle size={20} className="spin" /><p>Đang tải tín hiệu…</p></div>}
+        {!data && !error && <div className="state-box"><LoaderCircle size={20} className="spin" /><p>{tr("Đang tải tín hiệu…")}</p></div>}
         {data && data.signals.map(s => {
           const series = data.series[s.key];
           const latest = series[series.length - 1];
           return <div className="signal-block" key={s.key}>
-            <div className="signal-head"><strong>{s.label}</strong><span>{latest === null && !data.running[data.running.length - 1] ? 'Máy dừng' : formatValue(latest, s.decimals, s.unit)}</span></div>
+            <div className="signal-head"><strong>{tr(s.label)}</strong><span>{latest === null && !data.running[data.running.length - 1] ? tr("Máy dừng") : formatValue(latest, s.decimals, s.unit)}</span></div>
             <SignalChart signal={s} t={data.t} values={series} running={data.running} start={start} end={end}
               hoverT={hoverT} onHover={setHoverT} highlight={highlight} />
           </div>;
@@ -71,9 +72,9 @@ export function MachineDetail({ actor, machineId, onBack, onOpenIncident }: Mach
       </section>
 
       <section className="panel anomaly-panel">
-        <div className="panel-heading"><div><h2>Nhật ký bất thường</h2><p>Phát hiện từ dữ liệu máy. Chọn một dòng để xem trên biểu đồ.</p></div></div>
+        <div className="panel-heading"><div><h2>{tr("Nhật ký bất thường")}</h2><p>{tr("Phát hiện từ dữ liệu máy. Chọn một dòng để xem trên biểu đồ.")}</p></div></div>
         <div className="anomaly-list">
-          {events && events.length === 0 && <div className="state-box compact"><Inbox size={18} /><p>Chưa ghi nhận bất thường nào trên máy này.</p></div>}
+          {events && events.length === 0 && <div className="state-box compact"><Inbox size={18} /><p>{tr("Chưa ghi nhận bất thường nào trên máy này.")}</p></div>}
           {events?.map(e => {
             const Icon = STATE_ICONS[e.kind === 'stop' ? 'stopped' : e.level];
             const ongoing = e.ended_at === null;
@@ -83,14 +84,14 @@ export function MachineDetail({ actor, machineId, onBack, onOpenIncident }: Mach
                 <Icon size={16} />
                 <span>
                   <strong>{eventTitle(e)}</strong>
-                  <small>{formatClock(e.started_at)} → {ongoing ? 'đang diễn ra' : formatClock(e.ended_at!)} · {formatDuration(duration)}</small>
-                  {e.kind === 'threshold' && <small>Đỉnh {formatValue(e.peak, 1, e.unit)} · ngưỡng {e.threshold}</small>}
+                  <small>{formatClock(e.started_at)} → {ongoing ? tr("đang diễn ra") : formatClock(e.ended_at!)} · {formatDuration(duration)}</small>
+                  {e.kind === 'threshold' && <small>{tr("Đỉnh")}{" "}{formatValue(e.peak, 1, e.unit)}{" "}{tr("· ngưỡng")}{" "}{e.threshold}</small>}
                 </span>
-                {ongoing && <em>ĐANG MỞ</em>}
+                {ongoing && <em>{tr("ĐANG MỞ")}</em>}
               </button>
               {e.incident_ids.length > 0 && <div className="anomaly-links">
                 {e.incident_ids.map((id, i) => <button key={id} type="button" className="link-button" onClick={() => onOpenIncident(id)}>
-                  <ExternalLink size={12} /> Sự cố liên quan{e.incident_ids.length > 1 ? ` ${i + 1}` : ''}</button>)}
+                  <ExternalLink size={12} />{tr("Sự cố liên quan")}{e.incident_ids.length > 1 ? ` ${i + 1}` : ''}</button>)}
               </div>}
             </div>;
           })}

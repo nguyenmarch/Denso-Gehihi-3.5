@@ -1,4 +1,6 @@
-import React, { useEffect, useRef } from 'react';
+import { tr, useLanguage } from '../i18n';
+import React, { useEffect, useRef, useState } from 'react';
+import { Maximize2, Minus, Plus, Tags } from 'lucide-react';
 import cytoscape, { Core, ElementDefinition } from 'cytoscape';
 import { GraphTopology, ImpactedNode } from '../types';
 
@@ -15,6 +17,14 @@ interface GraphCanvasProps {
 
 const nodeName = (properties: Record<string, unknown>, fallback: string) =>
   typeof properties.name === 'string' && properties.name ? properties.name : fallback;
+
+
+const NODE_TYPES: Record<string, string> = {
+  processstep: 'Công đoạn', equipment: 'Thiết bị', batch: 'Lô', department: 'Bộ phận',
+  incidentevent: 'Kiểu lỗi đã biết', machineevent: 'Event máy', profilecheck: 'Kiểm tra profile',
+  machine: 'Thiết bị', process: 'Công đoạn', step: 'Công đoạn', fault: 'Lỗi', part: 'Linh kiện', document: 'Tài liệu',
+};
+const cardLabel = (name: string, category: string) => `${tr(NODE_TYPES[category.toLowerCase()] ?? category)}\n${name}`;
 
 const COL_GAP = 210;
 // Rows above/below the process line, keyed by node label.
@@ -112,7 +122,7 @@ const toElements = (topology: GraphTopology): ElementDefinition[] => {
   const positions = settlePositions(topology);
   return [
     ...topology.nodes.map(node => ({
-      data: { id: node.id, label: nodeName(node.properties, node.id), baseLabel: nodeName(node.properties, node.id), category: node.label },
+      data: { id: node.id, name: nodeName(node.properties, node.id), label: cardLabel(nodeName(node.properties, node.id), node.label), category: node.label },
       position: positions[node.id],
     })),
     // Preserve parallel relationships as separate edges; malformed topology surfaces an error.
@@ -121,36 +131,52 @@ const toElements = (topology: GraphTopology): ElementDefinition[] => {
   ];
 };
 
+// Text lives inside cards so labels remain attached to their nodes while panning and zooming.
 const STYLE: cytoscape.StylesheetJson = [
-  { selector: 'node', style: { label: 'data(label)', 'background-color': '#378bf3', color: '#444444', 'font-size': 13, 'text-valign': 'bottom', 'text-margin-y': 5, 'text-wrap': 'wrap', 'text-max-width': '150px', width: 22, height: 22, 'border-width': 2, 'border-color': '#ffffff', 'transition-property': 'background-color, border-color, opacity', 'transition-duration': 250 } as cytoscape.Css.Node },
-  { selector: 'node[category = "Equipment"]', style: { 'background-color': '#15cbb1', shape: 'round-rectangle' } },
-  { selector: 'node[category = "Batch"]', style: { 'background-color': '#a482fb' } },
-  { selector: 'node[category = "Department"]', style: { 'background-color': '#5d7891', shape: 'round-rectangle' } },
-  { selector: 'node[category = "IncidentEvent"]', style: { 'background-color': '#d68745', shape: 'diamond' } },
-  { selector: 'node[category = "MachineEvent"]', style: { 'background-color': '#e5604f', shape: 'diamond' } },
-  { selector: 'node[category = "ProfileCheck"]', style: { 'background-color': '#6fbf73', shape: 'tag' } },
-  { selector: 'edge', style: { width: 1.4, 'curve-style': 'bezier', 'line-color': '#b5bdc5', 'target-arrow-color': '#b5bdc5', 'target-arrow-shape': 'triangle', 'arrow-scale': 0.8, 'font-size': 7, color: '#745027', 'text-rotation': 'autorotate', 'text-background-color': '#ffffff', 'text-background-opacity': 0.85, 'text-background-padding': '2px' } as cytoscape.Css.Edge },
-  { selector: 'edge[walked = 1]', style: { width: 1.8, 'line-color': '#929da7', 'target-arrow-color': '#929da7' } },
-  { selector: 'edge[walked = 0]', style: { 'line-style': 'dashed', 'line-dash-pattern': [4, 4], opacity: 0.45 } as cytoscape.Css.Edge },
-  { selector: 'edge:selected, edge.hover', style: { label: 'data(label)', color: '#444444' } },
-  { selector: '.faded', style: { opacity: 0.6 } },
-  { selector: 'node[category = "machine"], node[category = "Machine"]', style: { 'background-color': '#15cbb1', shape: 'round-rectangle' } },
-  { selector: 'node[category = "process"], node[category = "Process"]', style: { 'background-color': '#378bf3', shape: 'ellipse' } },
-  { selector: 'node[category = "step"], node[category = "Step"]', style: { 'background-color': '#378bf3', shape: 'ellipse' } },
-  { selector: 'node[category = "fault"], node[category = "Fault"]', style: { 'background-color': '#d68745', shape: 'diamond' } },
-  { selector: 'node[category = "part"], node[category = "Part"]', style: { 'background-color': '#a482fb', shape: 'hexagon' } },
-  { selector: 'node[category = "document"], node[category = "Document"]', style: { 'background-color': '#75a5d3', shape: 'rectangle' } },
-  { selector: 'edge.neighbor', style: { opacity: 1, width: 2.5, 'line-color': '#e60033', 'target-arrow-color': '#e60033' } },
-  { selector: 'node.impacted', style: { 'background-color': 'mapData(impact, 0, 1, #f5b04a, #e60033)', 'border-color': '#ffd7a0', 'border-width': 3, width: 28, height: 28, color: '#943823', 'font-weight': 'bold' } as cytoscape.Css.Node },
-  { selector: 'node.origin', style: { 'background-color': '#e60033', 'border-color': '#ffffff', 'border-width': 4, width: 34, height: 34, color: '#bf002b', 'font-weight': 'bold' } as cytoscape.Css.Node },
-  { selector: 'edge.propagation', style: { width: 3, 'line-color': '#cf623f', 'target-arrow-color': '#cf623f', label: 'data(label)', opacity: 1, 'line-style': 'solid', 'z-index': 10 } as cytoscape.Css.Edge },
-  { selector: 'node.selected', style: { 'underlay-color': '#e60033', 'underlay-opacity': 0.35, 'underlay-padding': 7, 'underlay-shape': 'ellipse' } as cytoscape.Css.Node },
+  { selector: 'node', style: {
+    label: 'data(label)', shape: 'round-rectangle', 'background-color': '#edf4ff', 'border-color': '#6399d6',
+    'border-width': 1.5, color: '#244364', width: 150, height: 64, 'font-size': 12,
+    'font-family': 'Arial', 'text-valign': 'center', 'text-halign': 'center', 'text-wrap': 'wrap',
+    'text-max-width': '130px', 'line-height': 1.3, 'overlay-opacity': 0,
+    'transition-property': 'background-color, border-color, opacity', 'transition-duration': 180,
+  } as cytoscape.Css.Node },
+  { selector: 'node[category = "Equipment"], node[category = "machine"], node[category = "Machine"]', style: { 'background-color': '#eaf8f4', 'border-color': '#57a88f', color: '#225e4d' } },
+  { selector: 'node[category = "Batch"], node[category = "part"], node[category = "Part"]', style: { 'background-color': '#f3edff', 'border-color': '#a488cc', color: '#604182' } },
+  { selector: 'node[category = "Department"]', style: { 'background-color': '#f0f2f5', 'border-color': '#99a4b3', color: '#495667' } },
+  { selector: 'node[category = "IncidentEvent"], node[category = "fault"], node[category = "Fault"]', style: { 'background-color': '#fff5e8', 'border-color': '#d9a360', color: '#86571f' } },
+  { selector: 'node[category = "MachineEvent"]', style: { 'background-color': '#fff0ed', 'border-color': '#d48c7b', color: '#974c3a' } },
+  { selector: 'node[category = "ProfileCheck"]', style: { 'background-color': '#eff8ee', 'border-color': '#90b488', color: '#466c3e' } },
+  { selector: 'node[category = "document"], node[category = "Document"]', style: { 'background-color': '#eef4fa', 'border-color': '#75a5d3', color: '#3e6184' } },
+  { selector: 'edge', style: {
+    width: 1.4, 'curve-style': 'bezier', 'line-color': '#b5bdc5', 'target-arrow-color': '#b5bdc5',
+    'target-arrow-shape': 'triangle', 'arrow-scale': 1, 'font-size': 9, color: '#56616c',
+    'text-rotation': 'autorotate', 'text-background-color': '#ffffff', 'text-background-opacity': 1,
+    'text-background-padding': '4px', 'text-margin-y': -8,
+  } as cytoscape.Css.Edge },
+  { selector: 'edge[walked = 1]', style: { width: 2, 'line-color': '#8797a8', 'target-arrow-color': '#8797a8' } },
+  { selector: 'edge[walked = 0]', style: { 'line-style': 'dashed', 'line-dash-pattern': [5, 5], opacity: 0.55 } as cytoscape.Css.Edge },
+  { selector: 'edge.show-relations, edge:selected, edge.hover', style: { label: 'data(label)' } },
+  { selector: 'node.faded', style: { opacity: 0.78 } },
+  { selector: 'edge.faded', style: { opacity: 0.28 } },
+  { selector: 'edge.neighbor', style: { opacity: 1, width: 2.5, 'line-color': '#c84b65', 'target-arrow-color': '#c84b65' } },
+  { selector: 'node.impacted', style: {
+    'background-color': 'mapData(impact, 0, 1, #fff6e5, #ffd5de)', 'border-color': '#d97756',
+    'border-width': 2, height: 80, color: '#923c30', 'font-weight': 'bold',
+  } as cytoscape.Css.Node },
+  { selector: 'node.origin', style: { 'background-color': '#e60033', 'border-color': '#bf002b', 'border-width': 2, height: 80, color: '#ffffff', 'font-weight': 'bold' } as cytoscape.Css.Node },
+  { selector: 'edge.propagation', style: { width: 3.5, 'line-color': '#e60033', 'target-arrow-color': '#e60033', opacity: 1, 'line-style': 'solid', 'z-index': 10 } as cytoscape.Css.Edge },
+  { selector: 'node.selected', style: { 'border-color': '#e60033', 'border-width': 3, 'underlay-color': '#e60033', 'underlay-opacity': 0.08, 'underlay-padding': 7, 'underlay-shape': 'round-rectangle' } as cytoscape.Css.Node },
 ];
 
 export const GraphCanvas: React.FC<GraphCanvasProps> = ({ topology, impactedNodes, originId, selectedId, onNodeClick }) => {
+  const language = useLanguage();
+  const [zoom, setZoom] = useState(1);
+  const [showRelations, setShowRelations] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<Core | undefined>(undefined);
   // Read the latest callback without re-creating the graph on every render.
+  const initialSelectionRef = useRef(selectedId);
+  initialSelectionRef.current = selectedId;
   const onNodeClickRef = useRef(onNodeClick);
   onNodeClickRef.current = onNodeClick;
 
@@ -160,7 +186,7 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({ topology, impactedNode
       container: containerRef.current,
       elements: toElements(topology),
       style: STYLE,
-      layout: { name: 'preset', fit: true, padding: 45 },
+      layout: { name: 'preset', fit: true, padding: 60 },
       wheelSensitivity: 0.2,
       minZoom: 0.05,
       maxZoom: 2.5,
@@ -169,6 +195,14 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({ topology, impactedNode
     cy.on('mouseover', 'edge', event => event.target.addClass('hover'));
     cy.on('mouseout', 'edge', event => event.target.removeClass('hover'));
     cyRef.current = cy;
+    // Small screens open around the selected node at a readable scale; Fit remains an overview.
+    if (cy.width() < 600) {
+      const focus = initialSelectionRef.current ? cy.getElementById(initialSelectionRef.current) : cy.nodes().first();
+      cy.zoom(0.8);
+      if (focus.nonempty()) cy.center(focus);
+    }
+    setZoom(cy.zoom());
+    cy.on('zoom', () => setZoom(cy.zoom()));
     const observer = new ResizeObserver(() => { cy.resize(); });
     observer.observe(containerRef.current);
     return () => { observer.disconnect(); cy.destroy(); cyRef.current = undefined; };
@@ -179,16 +213,20 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({ topology, impactedNode
     if (!cy) return;
     cy.batch(() => {
       cy.elements().removeClass('impacted origin propagation faded');
-      cy.nodes().forEach(n => { n.data('label', n.data('baseLabel')); n.removeData('impact'); });
+      cy.nodes().forEach(n => {
+        const label = cardLabel(n.data('name'), n.data('category'));
+        n.data({ label, baseLabel: label }); n.removeData('impact');
+      });
       if (!originId || !impactedNodes) return;
 
       const distance = new Map<string, number>([[originId, 0]]);
       impactedNodes.forEach(n => distance.set(n.node_id, n.distance));
-      cy.getElementById(originId).addClass('origin');
+      const origin = cy.getElementById(originId);
+      origin.addClass('origin').data('label', `${origin.data('baseLabel')}\n${tr('Điểm phát sinh')}`);
       impactedNodes.forEach(n => {
         const el = cy.getElementById(n.node_id);
         if (el.empty()) return;
-        el.addClass('impacted').data({ impact: n.impact_score, label: `${el.data('baseLabel')}\n▲ ${n.impact_score.toFixed(3)}` });
+        el.addClass('impacted').data({ impact: n.impact_score, label: `${el.data('baseLabel')}\n${tr('Điểm ảnh hưởng')}: ${n.impact_score.toFixed(3)}` });
       });
       // Shortest-path propagation edges: a walked relation going from distance d to distance d+1.
       cy.edges().forEach(edge => {
@@ -198,7 +236,7 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({ topology, impactedNode
       });
       cy.elements().not('.origin, .impacted, .propagation').addClass('faded');
     });
-  }, [impactedNodes, originId, topology]);
+  }, [impactedNodes, originId, topology, language]);
 
   useEffect(() => {
     const cy = cyRef.current;
@@ -207,5 +245,28 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({ topology, impactedNode
     if (selectedId) { const node = cy.getElementById(selectedId); node.addClass('selected'); node.connectedEdges().addClass('neighbor'); }
   }, [selectedId, topology]);
 
-  return <div className="graph-canvas-frame"><div className="graph-toolbar"><button className="ghost-button" onClick={() => cyRef.current?.fit(undefined, 45)}>Vừa khung</button><button className="ghost-button" aria-label="Phóng to" onClick={() => { const cy = cyRef.current; if (cy) cy.zoom({ level: cy.zoom() * 1.2, renderedPosition: { x: cy.width()/2, y: cy.height()/2 } }); }}>+</button><button className="ghost-button" aria-label="Thu nhỏ" onClick={() => { const cy = cyRef.current; if (cy) cy.zoom({ level: cy.zoom() / 1.2, renderedPosition: { x: cy.width()/2, y: cy.height()/2 } }); }}>−</button></div><div ref={containerRef} className="graph-canvas" role="img" aria-label={`Graph chuỗi sản xuất: ${topology.nodes.length} node, ${topology.edges.length} quan hệ`} /></div>;
+  useEffect(() => {
+    cyRef.current?.edges().toggleClass('show-relations', showRelations);
+  }, [showRelations, topology]);
+
+  const changeZoom = (factor: number) => {
+    const cy = cyRef.current;
+    if (cy) cy.zoom({ level: Math.min(cy.maxZoom(), Math.max(cy.minZoom(), cy.zoom() * factor)), renderedPosition: { x: cy.width() / 2, y: cy.height() / 2 } });
+  };
+
+  return <div className="graph-canvas-frame">
+    <div className="graph-toolbar" role="toolbar" aria-label={tr('Điều khiển graph')}>
+      <button type="button" className={`ghost-button relation-toggle ${showRelations ? 'active' : ''}`} aria-pressed={showRelations} onClick={() => setShowRelations(value => !value)}>
+        <Tags size={14} />{tr('Tên quan hệ')}
+      </button>
+      <div className="graph-zoom-controls">
+        <button type="button" className="ghost-button" aria-label={tr('Thu nhỏ')} onClick={() => changeZoom(1 / 1.2)}><Minus size={15} /></button>
+        <span className="graph-zoom-value" aria-live="polite">{Math.round(zoom * 100)}%</span>
+        <button type="button" className="ghost-button" aria-label={tr('Phóng to')} onClick={() => changeZoom(1.2)}><Plus size={15} /></button>
+        <button type="button" className="ghost-button graph-fit" onClick={() => cyRef.current?.fit(undefined, 60)}><Maximize2 size={14} />{tr('Vừa khung')}</button>
+      </div>
+    </div>
+    <div ref={containerRef} className="graph-canvas" role="img" aria-label={tr('Graph chuỗi sản xuất: {0} node, {1} quan hệ', topology.nodes.length, topology.edges.length)} />
+    <div className="graph-help">{tr('Kéo để di chuyển · Cuộn để zoom · Chọn thẻ để xem liên kết')}</div>
+  </div>;
 };

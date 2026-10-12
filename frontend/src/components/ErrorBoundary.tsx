@@ -1,3 +1,4 @@
+import { tr } from '../i18n';
 import React from 'react';
 import { AlertTriangle } from 'lucide-react';
 
@@ -25,9 +26,9 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
     return (
       <div className="state-box error" role="alert">
         <AlertTriangle size={20} />
-        <strong>{this.props.title ?? 'Không thể hiển thị phần này'}</strong>
+        <strong>{this.props.title ?? tr("Không thể hiển thị phần này")}</strong>
         <p>{this.state.error.message}</p>
-        <button type="button" className="ghost-button" onClick={() => this.setState({ error: null })}>Thử lại</button>
+        <button type="button" className="ghost-button" onClick={() => this.setState({ error: null })}>{tr("Thử lại")}</button>
       </div>
     );
   }

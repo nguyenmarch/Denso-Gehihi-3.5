@@ -481,3 +481,39 @@ button.order-card.selected{border-left-color:var(--accent);background:var(--acce
  .section-title,.actions-heading{flex-wrap:wrap}.graph-wrap{height:460px}
  .incident-detail.empty{min-height:280px}
 }
+
+/* Language preference uses the same compact controls as the role picker. */
+.language-picker{display:grid;gap:2px;min-width:104px;padding-bottom:18px}
+.language-picker small{color:var(--text-3);font-size:9px;letter-spacing:.6px;text-transform:uppercase}
+.language-picker select{padding:4px 18px 4px 0;border:0;background:transparent;color:var(--text);font-size:12px;cursor:pointer}
+@media(max-width:760px){
+ .language-picker{margin-left:auto;padding-bottom:12px}
+ .sidebar nav{flex-shrink:0}
+}
+
+/* Graph cards and controls. Keep controls separate from the draggable canvas. */
+.graph-wrap{height:660px;padding:0;background:#fafafa}
+.graph-wrap>.graph-canvas-frame{background-color:#fafafa;background-image:radial-gradient(#dce0e4 .8px,transparent .8px);background-size:20px 20px}
+.graph-toolbar{left:16px;right:16px;top:14px;justify-content:space-between;align-items:center;pointer-events:none}
+.graph-toolbar button,.graph-zoom-controls{pointer-events:auto}
+.graph-toolbar .ghost-button{min-height:34px;box-shadow:0 2px 6px #00000005}
+.relation-toggle.active{color:var(--accent);border-color:#e6a4b3;background:var(--accent-soft)}
+.graph-zoom-controls{display:flex;align-items:center;gap:0;border:1px solid var(--line);background:#fff;border-radius:3px;overflow:hidden}
+.graph-zoom-controls .ghost-button{border:0;box-shadow:none;min-width:34px;border-radius:0}
+.graph-zoom-controls .graph-fit{border-left:1px solid var(--line);padding:7px 12px}
+.graph-zoom-value{width:48px;text-align:center;font-size:11px;font-variant-numeric:tabular-nums;color:var(--text-2)}
+.graph-help{position:absolute;bottom:12px;right:16px;left:16px;width:fit-content;margin-left:auto;padding:6px 10px;border:1px solid #ededed;background:#fffffff0;border-radius:3px;color:var(--text-3);font-size:10.5px;pointer-events:none}
+@media(max-width:760px){
+ .graph-wrap{height:540px}
+ .graph-toolbar{left:10px;right:10px;gap:8px}
+ .graph-toolbar .ghost-button{font-size:10px;padding:7px 8px}
+ .graph-zoom-controls .graph-fit{padding:7px 8px}
+ .graph-zoom-value{width:38px}
+ .graph-help{font-size:9px;right:10px;left:10px}
+}
+
+.legend-dot.selected{background:#fff;border:2px solid var(--accent);width:9px;height:9px;border-radius:2px}
+.legend-dot.origin{background:var(--accent);border-radius:2px}
+.legend-dot.impacted{background:#ffd5de;border:1px solid #d97756;border-radius:2px;box-shadow:none}
+
+@media(max-width:760px){.result-banner{flex-wrap:wrap}.severity-badge{margin-left:0}}

@@ -1,3 +1,4 @@
+import { tr } from '../i18n';
 import { useCallback, useEffect, useState } from 'react';
 import { Actor, command, Incident, Lesson, LessonStatus, listLessons, toApiError } from '../services/api';
 import { TYPE_LABELS } from './IncidentTrigger';
@@ -18,21 +19,21 @@ function PendingLesson({ lesson, actor, actors, source, onChange }: { lesson: Le
   };
   const report = source?.reports[lesson.source.report_index];
   return <article className="lesson-card">
-    <p className="muted">{lesson.context.asset_id} · {TYPE_LABELS[lesson.context.incident_type]} · đề xuất bởi {actorName(actors, lesson.source.author_id)} lúc {formatAt(lesson.created_at)}</p>
-    <details><summary>Nguồn: sự cố {lesson.source.incident_id.slice(0, 8)}, báo cáo #{lesson.source.report_index + 1}</summary>
-      {report ? <><p>{report.outcome === 'fixed' ? 'Đã khắc phục' : 'Chưa khắc phục'}: {report.summary}</p>
-        {report.checks.length > 0 && <ul>{report.checks.map((c, i) => <li key={i}>{c.text}: {c.result}</li>)}</ul>}</> : <p>Không tải được báo cáo nguồn.</p>}
+    <p className="muted">{lesson.context.asset_id} · {tr(TYPE_LABELS[lesson.context.incident_type])}{" "}{tr("· đề xuất bởi")}{" "}{actorName(actors, lesson.source.author_id)}{" "}{tr("lúc")}{" "}{formatAt(lesson.created_at)}</p>
+    <details><summary>{tr("Nguồn: sự cố")}{" "}{lesson.source.incident_id.slice(0, 8)}{" "}{tr(", báo cáo #")}{lesson.source.report_index + 1}</summary>
+      {report ? <><p>{report.outcome === 'fixed' ? tr("Đã khắc phục") : tr("Chưa khắc phục")}: {report.summary}</p>
+        {report.checks.length > 0 && <ul>{report.checks.map((c, i) => <li key={i}>{c.text}: {c.result}</li>)}</ul>}</> : <p>{tr("Không tải được báo cáo nguồn.")}</p>}
     </details>
-    {lesson.text !== lesson.original_text && <p className="muted">Bản gốc: {lesson.original_text}</p>}
-    <label>Nội dung bài học<textarea value={text} maxLength={1000} onChange={e => setText(e.target.value)} disabled={busy} /></label>
+    {lesson.text !== lesson.original_text && <p className="muted">{tr("Bản gốc:")}{" "}{lesson.original_text}</p>}
+    <label>{tr("Nội dung bài học")}<textarea value={text} maxLength={1000} onChange={e => setText(e.target.value)} disabled={busy} /></label>
     <div className="lesson-actions">
-      <button className="ghost-button" disabled={busy || !text.trim() || text.trim() === lesson.text} onClick={() => run(`/lessons/${lesson.id}`, { text: text.trim() }, 'patch')}>Lưu chỉnh sửa</button>
-      <button className="ghost-button" disabled={busy || text.trim() !== lesson.text} onClick={() => run(`/lessons/${lesson.id}/accept`, {})}>Chấp nhận</button>
-      <input aria-label="Lý do từ chối" placeholder="Lý do từ chối" value={reason} maxLength={500} onChange={e => setReason(e.target.value)} disabled={busy} />
-      <button className="ghost-button" disabled={busy || !reason.trim()} onClick={() => run(`/lessons/${lesson.id}/reject`, { reason: reason.trim() })}>Từ chối</button>
+      <button className="ghost-button" disabled={busy || !text.trim() || text.trim() === lesson.text} onClick={() => run(`/lessons/${lesson.id}`, { text: text.trim() }, 'patch')}>{tr("Lưu chỉnh sửa")}</button>
+      <button className="ghost-button" disabled={busy || text.trim() !== lesson.text} onClick={() => run(`/lessons/${lesson.id}/accept`, {})}>{tr("Chấp nhận")}</button>
+      <input aria-label={tr("Lý do từ chối")} placeholder={tr("Lý do từ chối")} value={reason} maxLength={500} onChange={e => setReason(e.target.value)} disabled={busy} />
+      <button className="ghost-button" disabled={busy || !reason.trim()} onClick={() => run(`/lessons/${lesson.id}/reject`, { reason: reason.trim() })}>{tr("Từ chối")}</button>
     </div>
-    {text.trim() !== lesson.text && <small className="muted">Lưu chỉnh sửa trước khi chấp nhận.</small>}
-    {error && <p className="error-banner" role="alert">{error}</p>}
+    {text.trim() !== lesson.text && <small className="muted">{tr("Lưu chỉnh sửa trước khi chấp nhận.")}</small>}
+    {error && <p className="error-banner" role="alert">{tr(error)}</p>}
   </article>;
 }
 
@@ -48,14 +49,14 @@ export function LessonReview({ actor, actors, incidents }: { actor: Actor; actor
   const update = (lesson: Lesson) => setLessons(prev => prev.map(l => l.id === lesson.id ? lesson : l));
   const pending = lessons.filter(l => l.status === 'pending');
   const reviewed = lessons.filter(l => l.status !== 'pending');
-  return <section className="panel lesson-review" aria-label="Duyệt bài học">
-    <div className="panel-heading"><div><h2>Duyệt bài học</h2><p>Chỉ bài học đã chấp nhận mới xuất hiện trong hướng dẫn của sự cố cùng thiết bị và loại lỗi.</p></div></div>
-    {error && <p className="error-banner" role="alert">{error}</p>}
-    {pending.length === 0 && <p>Không có bài học chờ duyệt.</p>}
+  return <section className="panel lesson-review" aria-label={tr("Duyệt bài học")}>
+    <div className="panel-heading"><div><h2>{tr("Duyệt bài học")}</h2><p>{tr("Chỉ bài học đã chấp nhận mới xuất hiện trong hướng dẫn của sự cố cùng thiết bị và loại lỗi.")}</p></div></div>
+    {error && <p className="error-banner" role="alert">{tr(error)}</p>}
+    {pending.length === 0 && <p>{tr("Không có bài học chờ duyệt.")}</p>}
     {pending.map(l => <PendingLesson key={l.id} lesson={l} actor={actor} actors={actors} source={incidents.find(i => i.id === l.source.incident_id)} onChange={update} />)}
-    {reviewed.length > 0 && <><h3>Đã xem xét</h3>{reviewed.map(l => <article key={l.id} className={`lesson-card ${l.status}`}>
-      <strong>{STATUS_LABELS[l.status]}</strong> · {l.text}
-      <p className="muted">{l.context.asset_id} · {TYPE_LABELS[l.context.incident_type]} · {actorName(actors, l.review?.by)} lúc {formatAt(l.review?.at)}{l.review?.reason ? ` · lý do: ${l.review.reason}` : ''}</p>
+    {reviewed.length > 0 && <><h3>{tr("Đã xem xét")}</h3>{reviewed.map(l => <article key={l.id} className={`lesson-card ${l.status}`}>
+      <strong>{tr(STATUS_LABELS[l.status])}</strong> · {l.text}
+      <p className="muted">{l.context.asset_id} · {tr(TYPE_LABELS[l.context.incident_type])} · {actorName(actors, l.review?.by)}{" "}{tr("lúc")}{" "}{formatAt(l.review?.at)}{l.review?.reason ? tr(" · lý do: {0}", l.review.reason) : ''}</p>
     </article>)}</>}
   </section>;
 }

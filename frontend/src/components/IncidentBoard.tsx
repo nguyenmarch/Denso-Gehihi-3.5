@@ -1,3 +1,4 @@
+import { tr } from '../i18n';
 import { Dispatch, SetStateAction, useEffect, useMemo, useState } from 'react';
 import { Inbox, RefreshCw, Zap } from 'lucide-react';
 import { Actor, command, Incident, listIncidents, listScenarios, Scenario, toApiError } from '../services/api';
@@ -57,34 +58,34 @@ export function IncidentBoard({ actor, actors, incidents, onIncidentsChange, sel
   const faultNode = originNodes.find(n => n.id === nodeId);
   const alerts = incidents.filter(i => i.state === 'alert').length;
   return <section className="panel workflow">
-    <div className="panel-heading"><div><div className="heading-row"><h2>{operator ? 'Sự cố' : actor.role === 'technician' ? 'Việc của tôi' : 'Hồ sơ sự cố'}</h2>{incidents.length > 0 && <span className="tag blue-tag">{incidents.length}</span>}{alerts > 0 && <span className="tag alert-tag">{alerts} CẢNH BÁO</span>}</div><p>Dữ liệu synthetic. Không có đường điều khiển tới máy.</p></div></div>
+    <div className="panel-heading"><div><div className="heading-row"><h2>{operator ? tr("Sự cố") : actor.role === 'technician' ? tr("Việc của tôi") : tr("Hồ sơ sự cố")}</h2>{incidents.length > 0 && <span className="tag blue-tag">{incidents.length}</span>}{alerts > 0 && <span className="tag alert-tag">{alerts}{" "}{tr("CẢNH BÁO")}</span>}</div><p>{tr("Dữ liệu synthetic. Không có đường điều khiển tới máy.")}</p></div></div>
     {operator && <div className="board-tools">
       {scenarios.length > 0 && <>
-        <p className="tool-label">KÍCH HOẠT KỊCH BẢN</p>
+        <p className="tool-label">{tr("KÍCH HOẠT KỊCH BẢN")}</p>
         <div className="scenario-list">
           {scenarios.map(s => <button key={s.id} type="button" className="scenario-chip" disabled={busy} onClick={() => create(`/scenarios/${s.id}/trigger`, {})}>
             <Zap size={14} /><span><b>{s.event.label}</b><small>{s.asset.name}</small></span></button>)}
         </div>
       </>}
       <details className="fault-form">
-        <summary>Gây lỗi thủ công (synthetic)<small>{faultNode ? `${String(faultNode.properties.name ?? faultNode.id)} · ${TYPE_LABELS[incidentType]} · mức ${severity.toFixed(1)}` : `Chọn node loại ${ORIGIN_TYPES[incidentType].join(' / ')}`}</small></summary>
+        <summary>{tr("Gây lỗi thủ công (synthetic)")}<small>{faultNode ? tr("{0} · {1} · mức {2}", String(faultNode.properties.name ?? faultNode.id), tr(TYPE_LABELS[incidentType]), severity.toFixed(1)) : tr("Chọn node loại {0}", ORIGIN_TYPES[incidentType].join(' / '))}</small></summary>
         <div className="fault-grid">
           <label className="field-label">NODE<NodeSelect nodes={originNodes} value={nodeId} onChange={onNodeChange} disabled={busy} /></label>
-          <label className="field-label">LOẠI SỰ CỐ<select value={incidentType} disabled={busy} onChange={e => onIncidentTypeChange(e.target.value as IncidentType)}>{INCIDENT_TYPES.map(t => <option key={t} value={t}>{TYPE_LABELS[t]}</option>)}</select></label>
-          <label className="severity-control"><span className="field-label">MỨC ĐỘ <b>{severity.toFixed(1)}</b></span><input type="range" min={SEVERITY_MIN} max={SEVERITY_MAX} step="0.1" value={severity} disabled={busy} onChange={e => onSeverityChange(Number(e.target.value))} /></label>
+          <label className="field-label">{tr("LOẠI SỰ CỐ")}<select value={incidentType} disabled={busy} onChange={e => onIncidentTypeChange(e.target.value as IncidentType)}>{INCIDENT_TYPES.map(t => <option key={t} value={t}>{tr(TYPE_LABELS[t])}</option>)}</select></label>
+          <label className="severity-control"><span className="field-label">{tr("MỨC ĐỘ")}{" "}<b>{severity.toFixed(1)}</b></span><input type="range" min={SEVERITY_MIN} max={SEVERITY_MAX} step="0.1" value={severity} disabled={busy} onChange={e => onSeverityChange(Number(e.target.value))} /></label>
         </div>
-        <button type="button" className="run-button" disabled={busy || !faultNode} onClick={() => create('/incidents/fault', { node_id: nodeId, incident_type: incidentType, severity })}>{busy ? 'Đang xử lý…' : 'Gây lỗi ngay'}</button>
+        <button type="button" className="run-button" disabled={busy || !faultNode} onClick={() => create('/incidents/fault', { node_id: nodeId, incident_type: incidentType, severity })}>{busy ? tr("Đang xử lý…") : tr("Gây lỗi ngay")}</button>
       </details>
     </div>}
-    {listError && <div className="error-banner" role="alert"><span>{listError}</span><button type="button" className="ghost-button" onClick={() => setReload(n => n + 1)}><RefreshCw size={13} /> Tải lại</button></div>}
-    {commandError && <div className="error-banner" role="alert"><span>{commandError}</span></div>}
+    {listError && <div className="error-banner" role="alert"><span>{tr(listError)}</span><button type="button" className="ghost-button" onClick={() => setReload(n => n + 1)}><RefreshCw size={13} />{tr("Tải lại")}</button></div>}
+    {commandError && <div className="error-banner" role="alert"><span>{tr(commandError)}</span></div>}
     <div className="order-list">
-      {incidents.length === 0 && <div className="state-box compact"><Inbox size={20} /><p>{operator ? 'Chưa có sự cố. Kích hoạt một kịch bản để bắt đầu.' : actor.role === 'technician' ? 'Chưa có việc nào được giao cho bạn.' : 'Chưa có sự cố.'}</p></div>}
+      {incidents.length === 0 && <div className="state-box compact"><Inbox size={20} /><p>{operator ? tr("Chưa có sự cố. Kích hoạt một kịch bản để bắt đầu.") : actor.role === 'technician' ? tr("Chưa có việc nào được giao cho bạn.") : tr("Chưa có sự cố.")}</p></div>}
       {incidents.map(incident => <button type="button" key={incident.id} className={`order-card ${incident.state} ${incident.id === selectedId ? 'selected' : ''}`} onClick={() => onSelect(incident.id)}>
-        <div><strong>{incident.asset.name} · {TYPE_LABELS[incident.incident_type]}</strong>
-          <p>{incident.event?.label ?? 'Gây lỗi thủ công'} · alarm {formatAt(incident.alarm_at)}</p>
-          <p>{incident.assignee ? `Giao cho ${actorName(actors, incident.assignee.id)}` : 'Chưa giao'}</p></div>
-        <span className={`state-pill ${incident.state}`}>{STATE_LABELS[incident.state]}</span>
+        <div><strong>{incident.asset.name} · {tr(TYPE_LABELS[incident.incident_type])}</strong>
+          <p>{incident.event?.label ?? tr("Gây lỗi thủ công")} · alarm {formatAt(incident.alarm_at)}</p>
+          <p>{incident.assignee ? `Giao cho ${actorName(actors, incident.assignee.id)}` : tr("Chưa giao")}</p></div>
+        <span className={`state-pill ${incident.state}`}>{tr(STATE_LABELS[incident.state])}</span>
       </button>)}
     </div>
   </section>;

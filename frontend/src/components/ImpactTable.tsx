@@ -1,3 +1,4 @@
+import { tr } from '../i18n';
 import React from 'react';
 import { ImpactedNode } from '../types';
 
@@ -9,10 +10,10 @@ interface ImpactTableProps {
 // Renders `impacted_nodes` exactly as returned by the backend (already sorted by distance, then node_id).
 export const ImpactTable: React.FC<ImpactTableProps> = ({ nodes, onSelect }) => (
   <div className="impact-area">
-    <div className="actions-heading"><div><p className="eyebrow">PHÂN TÍCH ẢNH HƯỞNG</p><h2>Ảnh hưởng phía sau</h2><p>impact_score = mức độ × decay<sup>khoảng cách</sup>, tính bởi propagation engine.</p></div></div>
+    <div className="actions-heading"><div><p className="eyebrow">{tr("PHÂN TÍCH ẢNH HƯỞNG")}</p><h2>{tr("Ảnh hưởng phía sau")}</h2><p>{tr("impact_score = mức độ × decay")}<sup>{tr("khoảng cách")}</sup>{" "}{tr(", tính bởi propagation engine.")}</p></div></div>
     <div className="impact-table-wrap">
       <table className="impact-table">
-        <thead><tr><th>Node</th><th>Loại</th><th className="num">Số bước</th><th>Điểm ảnh hưởng</th></tr></thead>
+        <thead><tr><th>Node</th><th>{tr("Loại")}</th><th className="num">{tr("Số bước")}</th><th>{tr("Điểm ảnh hưởng")}</th></tr></thead>
         <tbody>
           {nodes.map(n => (
             <tr key={n.node_id} onClick={() => onSelect?.(n.node_id)}>

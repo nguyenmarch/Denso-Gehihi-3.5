@@ -1,3 +1,4 @@
+import { tr } from '../i18n';
 import React from 'react';
 import { Info } from 'lucide-react';
 
@@ -16,10 +17,10 @@ export const ActionMatrix: React.FC<ActionMatrixProps> = ({ actions, departmentN
   return (
     <div className="actions-area">
       <div className="actions-heading">
-        <div><p className="eyebrow">MA TRẬN PHẢN ỨNG</p><h2>Hành động theo playbook</h2><p>Playbook của thiết bị và loại sự cố này, chia theo bộ phận. Chỉ để tham khảo, không tạo việc.</p></div>
+        <div><p className="eyebrow">{tr("MA TRẬN PHẢN ỨNG")}</p><h2>{tr("Hành động theo playbook")}</h2><p>{tr("Playbook của thiết bị và loại sự cố này, chia theo bộ phận. Chỉ để tham khảo, không tạo việc.")}</p></div>
       </div>
       {context && <div className="context-note"><Info size={14} /><span>{context}</span></div>}
-      {entries.length === 0 && !context && <div className="state-box compact"><p>Backend không trả về hành động nào cho lần mô phỏng này.</p></div>}
+      {entries.length === 0 && !context && <div className="state-box compact"><p>{tr("Backend không trả về hành động nào cho lần mô phỏng này.")}</p></div>}
       {entries.length > 0 && (
         <div className="actions-grid">
           {entries.map(([dept, action]) => {
