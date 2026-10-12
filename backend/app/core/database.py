@@ -8,6 +8,9 @@ TODO (handoff - B: Neo4j connectivity & migrations)
 from neo4j import AsyncGraphDatabase, AsyncDriver
 from app.core.config import settings
 import asyncio
+import logging
+
+logger = logging.getLogger(__name__)
 
 class Neo4jConnector:
     def __init__(self):
@@ -29,7 +32,11 @@ class Neo4jConnector:
         try:
             await asyncio.wait_for(self.driver.verify_connectivity(), timeout=2)
             return True
-        except Exception:
+        except Exception as exc:
+            # The health endpoint intentionally remains available when Aura is
+            # down, but deployment logs need the driver error to distinguish
+            # invalid credentials from an unreachable database.
+            logger.warning("Neo4j connectivity check failed: %s", exc)
             return False
 
     async def close(self):
