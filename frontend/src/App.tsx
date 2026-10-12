@@ -15,6 +15,7 @@ import { LessonReview } from './components/LessonReview';
 import { ExpertInspector } from './components/ExpertInspector';
 import { MachineList } from './components/MachineList';
 import { MachineDetail } from './components/MachineDetail';
+import { LandingPage } from './components/LandingPage';
 import { ROLE_LABELS } from './components/labels';
 import { Actor, Incident, listActors, Role } from './services/api';
 import './app.css';
@@ -74,6 +75,7 @@ export const App: React.FC = () => {
   const [incidentType, setIncidentType] = useState<IncidentType>('MACHINE_BREAKDOWN');
   const [severity, setSeverity] = useState(1);
   const [requestedView, setRequestedView] = useState<View>(readView);
+  const [showHome, setShowHome] = useState(() => readParam('view') === '');
   const [machineId, setMachineId] = useState(() => readParam('machine'));
   const [lastSync, setLastSync] = useState<number>();
   const shownAlertId = useRef('');
@@ -146,7 +148,7 @@ export const App: React.FC = () => {
   // Technicians have no graph; only experts review lessons.
   const views: View[] = role === 'technician' ? ['incidents'] : role === 'expert' ? ['incidents', 'machines', 'graph', 'lessons'] : ['incidents', 'machines', 'graph'];
   const view = views.includes(requestedView) ? requestedView : 'incidents';
-  const openView = (next: View) => { setRequestedView(next); writeParam('view', next === 'incidents' ? '' : next); };
+  const openView = (next: View) => { setShowHome(false); setRequestedView(next); writeParam('view', next); };
   const openMachine = (id: string) => { setMachineId(id); writeParam('machine', id); };
   const openIncident = (id: string) => { selectIncident(id); openView('incidents'); };
 
@@ -205,6 +207,8 @@ export const App: React.FC = () => {
     graph: [tr("Knowledge graph & mô phỏng"), tr("Theo dõi sự cố lan truyền qua graph chuỗi sản xuất.")],
     lessons: [tr("Duyệt bài học"), tr("Bài học từ báo cáo kỹ thuật chỉ vào hướng dẫn sau khi chuyên gia chấp nhận.")],
   };
+
+  if (showHome) return <LandingPage onOpen={openView} />;
 
   return (
     <div className="app-shell">
