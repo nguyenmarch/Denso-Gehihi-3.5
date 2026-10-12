@@ -227,10 +227,10 @@ export const App: React.FC = () => {
         <div className="sidebar-bottom">
           <div className={`sidebar-status ${statusTone}`}><div className={`status-dot ${statusTone === 'good' ? 'pulse' : ''}`} /><div><strong>{statusText}</strong><small>{API_BASE.replace(/^https?:\/\//, '')}</small></div></div>
           <div className="user-card">
-            <div className="avatar">{actor ? initials(actor.name) : 'DM'}</div>
+            <div className="avatar">{actor ? initials(tr(actor.name)) : 'DM'}</div>
             {actor
               ? <label className="actor-picker"><small>{tr("Vai trò demo")}</small><select aria-label="Actor demo" value={actor.id} onChange={e => changeActor(e.target.value)}>
-                  {(Object.keys(ROLE_LABELS) as Role[]).map(r => <optgroup key={r} label={tr(ROLE_LABELS[r])}>{actorList.filter(a => a.role === r).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</optgroup>)}
+                  {(Object.keys(ROLE_LABELS) as Role[]).map(r => <optgroup key={r} label={tr(ROLE_LABELS[r])}>{actorList.filter(a => a.role === r).map(a => <option key={a.id} value={a.id}>{tr(a.name)}</option>)}</optgroup>)}
                 </select></label>
               : <div><strong>{tr("Chế độ demo")}</strong><small>{actors.status === 'loading' ? tr("Đang tải actor…") : tr("Chưa có actor")}</small></div>}
           </div>
