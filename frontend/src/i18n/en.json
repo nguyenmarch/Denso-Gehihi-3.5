@@ -309,5 +309,16 @@
   "Điều khiển graph": "Graph controls",
   "Tên quan hệ": "Relation labels",
   "Kéo để di chuyển · Cuộn để zoom · Chọn thẻ để xem liên kết": "Drag to pan · Scroll to zoom · Select a card to see connections",
-  "Điểm phát sinh": "Incident origin"
+  "Điểm phát sinh": "Incident origin",
+  "Tìm node trong graph": "Search graph nodes",
+  "Tìm node hoặc thiết bị…": "Search nodes or equipment…",
+  "Xóa tìm kiếm": "Clear search",
+  "Kết quả tìm kiếm": "Search results",
+  "Không tìm thấy node": "No matching nodes",
+  "Xem toàn bộ": "Show all",
+  "Tập trung": "Focus",
+  "NODE ĐANG CHỌN": "SELECTED NODE",
+  "LIÊN KẾT TRỰC TIẾP": "DIRECT CONNECTIONS",
+  "Không có liên kết trực tiếp": "No direct connections",
+  "Chọn một node để xem liên kết": "Select a node to view connections"
 }

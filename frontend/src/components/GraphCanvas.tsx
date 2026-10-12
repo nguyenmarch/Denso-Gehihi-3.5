@@ -1,6 +1,6 @@
 import { tr, useLanguage } from '../i18n';
-import React, { useEffect, useRef, useState } from 'react';
-import { Maximize2, Minus, Plus, Tags } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Focus, Maximize2, Minus, Plus, Search, Tags, X } from 'lucide-react';
 import cytoscape, { Core, ElementDefinition } from 'cytoscape';
 import { GraphTopology, ImpactedNode } from '../types';
 
@@ -156,6 +156,7 @@ const STYLE: cytoscape.StylesheetJson = [
   { selector: 'edge[walked = 1]', style: { width: 2, 'line-color': '#8797a8', 'target-arrow-color': '#8797a8' } },
   { selector: 'edge[walked = 0]', style: { 'line-style': 'dashed', 'line-dash-pattern': [5, 5], opacity: 0.55 } as cytoscape.Css.Edge },
   { selector: 'edge.show-relations, edge:selected, edge.hover', style: { label: 'data(label)' } },
+  { selector: '.context-hidden', style: { display: 'none' } },
   { selector: 'node.faded', style: { opacity: 0.78 } },
   { selector: 'edge.faded', style: { opacity: 0.28 } },
   { selector: 'edge.neighbor', style: { opacity: 1, width: 2.5, 'line-color': '#c84b65', 'target-arrow-color': '#c84b65' } },
@@ -172,8 +173,20 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({ topology, impactedNode
   const language = useLanguage();
   const [zoom, setZoom] = useState(1);
   const [showRelations, setShowRelations] = useState(false);
+  const [focused, setFocused] = useState(() => window.innerWidth < 600);
+  const [query, setQuery] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<Core | undefined>(undefined);
+  const overviewPositionsRef = useRef<Record<string, { x: number; y: number }>>({});
+  const wasFocusedRef = useRef(false);
+  const initialMobileCenterRef = useRef(false);
+  const selectedNode = topology.nodes.find(node => node.id === selectedId);
+  const related = useMemo(() => topology.edges
+    .filter(edge => edge.source === selectedId || edge.target === selectedId)
+    .map(edge => ({ edge, other: topology.nodes.find(node => node.id === (edge.source === selectedId ? edge.target : edge.source)) }))
+    .filter((entry): entry is { edge: typeof topology.edges[number]; other: typeof topology.nodes[number] } => !!entry.other), [selectedId, topology]);
+  const matches = useMemo(() => query.trim() ? topology.nodes.filter(node =>
+    `${node.id} ${nodeName(node.properties, node.id)}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())).slice(0, 6) : [], [query, topology]);
   // Read the latest callback without re-creating the graph on every render.
   const initialSelectionRef = useRef(selectedId);
   initialSelectionRef.current = selectedId;
@@ -195,6 +208,7 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({ topology, impactedNode
     cy.on('mouseover', 'edge', event => event.target.addClass('hover'));
     cy.on('mouseout', 'edge', event => event.target.removeClass('hover'));
     cyRef.current = cy;
+    overviewPositionsRef.current = Object.fromEntries(cy.nodes().map(node => [node.id(), { ...node.position() }]));
     // Small screens open around the selected node at a readable scale; Fit remains an overview.
     if (cy.width() < 600) {
       const focus = initialSelectionRef.current ? cy.getElementById(initialSelectionRef.current) : cy.nodes().first();
@@ -203,7 +217,16 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({ topology, impactedNode
     }
     setZoom(cy.zoom());
     cy.on('zoom', () => setZoom(cy.zoom()));
-    const observer = new ResizeObserver(() => { cy.resize(); });
+    let previousWidth = cy.width();
+    const observer = new ResizeObserver(() => {
+      cy.resize();
+      const width = cy.width();
+      if (previousWidth >= 600 && width < 600) {
+        const focus = initialSelectionRef.current ? cy.getElementById(initialSelectionRef.current) : cy.nodes().first();
+        if (focus.nonempty()) { cy.zoom(0.9); cy.center(focus); }
+      }
+      previousWidth = width;
+    });
     observer.observe(containerRef.current);
     return () => { observer.disconnect(); cy.destroy(); cyRef.current = undefined; };
   }, [topology]);
@@ -242,12 +265,64 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({ topology, impactedNode
     const cy = cyRef.current;
     if (!cy) return;
     cy.elements().removeClass('selected neighbor');
-    if (selectedId) { const node = cy.getElementById(selectedId); node.addClass('selected'); node.connectedEdges().addClass('neighbor'); }
+    if (selectedId) {
+      const node = cy.getElementById(selectedId);
+      node.addClass('selected'); node.connectedEdges().addClass('neighbor');
+      if (cy.width() < 600 && !initialMobileCenterRef.current && node.nonempty()) {
+        cy.zoom(0.9);
+        cy.center(node);
+        initialMobileCenterRef.current = true;
+      }
+    }
   }, [selectedId, topology]);
 
   useEffect(() => {
     cyRef.current?.edges().toggleClass('show-relations', showRelations);
   }, [showRelations, topology]);
+
+  useEffect(() => {
+    const cy = cyRef.current;
+    if (!cy) return;
+    const visible = new Set<string>();
+    if (focused && selectedId) {
+      visible.add(selectedId);
+      topology.edges.forEach(edge => {
+        if (edge.source === selectedId) visible.add(edge.target);
+        if (edge.target === selectedId) visible.add(edge.source);
+      });
+    }
+    cy.batch(() => {
+      cy.nodes().forEach(node => { node.toggleClass('context-hidden', focused && !visible.has(node.id())); });
+      cy.edges().forEach(edge => { edge.toggleClass('context-hidden', focused && (!visible.has(edge.source().id()) || !visible.has(edge.target().id()))); });
+      if (focused && selectedId) {
+        cy.getElementById(selectedId).position({ x: 0, y: 0 });
+        const neighbors = [...visible].filter(id => id !== selectedId).sort();
+        const radius = cy.width() < 600 ? 175 : 235;
+        neighbors.forEach((id, index) => {
+          const angle = -Math.PI / 2 + index * 2 * Math.PI / Math.max(neighbors.length, 1);
+          cy.getElementById(id).position({ x: Math.cos(angle) * radius, y: Math.sin(angle) * radius });
+        });
+      } else if (wasFocusedRef.current) {
+        cy.nodes().forEach(node => { const position = overviewPositionsRef.current[node.id()]; if (position) node.position(position); });
+      }
+    });
+    if (focused && visible.size) cy.fit(cy.elements().not('.context-hidden'), cy.width() < 600 ? 30 : 92);
+    else if (wasFocusedRef.current) cy.fit(undefined, 60);
+    wasFocusedRef.current = focused;
+  }, [focused, selectedId, topology, originId, impactedNodes]);
+
+  const selectNode = (id: string) => {
+    onNodeClickRef.current?.(id);
+    setQuery('');
+    if (!focused) {
+      const cy = cyRef.current;
+      const node = cy?.getElementById(id);
+      if (cy && node?.nonempty()) {
+        cy.zoom(Math.max(cy.zoom(), 1.15));
+        cy.center(node);
+      }
+    }
+  };
 
   const changeZoom = (factor: number) => {
     const cy = cyRef.current;
@@ -256,17 +331,41 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({ topology, impactedNode
 
   return <div className="graph-canvas-frame">
     <div className="graph-toolbar" role="toolbar" aria-label={tr('Điều khiển graph')}>
-      <button type="button" className={`ghost-button relation-toggle ${showRelations ? 'active' : ''}`} aria-pressed={showRelations} onClick={() => setShowRelations(value => !value)}>
-        <Tags size={14} />{tr('Tên quan hệ')}
-      </button>
+      <div className="graph-explore">
+        <div className="graph-search">
+          <Search size={15} aria-hidden="true" />
+          <input aria-label={tr('Tìm node trong graph')} placeholder={tr('Tìm node hoặc thiết bị…')} value={query} onChange={event => setQuery(event.target.value)}
+            onKeyDown={event => { if (event.key === 'Enter' && matches[0]) selectNode(matches[0].id); if (event.key === 'Escape') setQuery(''); }} />
+          {query && <button type="button" aria-label={tr('Xóa tìm kiếm')} onClick={() => setQuery('')}><X size={14} /></button>}
+          {query && <div className="graph-search-results" role="listbox" aria-label={tr('Kết quả tìm kiếm')}>
+            {matches.length ? matches.map(node => <button type="button" key={node.id} onClick={() => selectNode(node.id)}>
+              <strong>{nodeName(node.properties, node.id)}</strong><small>{tr(NODE_TYPES[node.label.toLowerCase()] ?? node.label)} · {node.id}</small>
+            </button>) : <p>{tr('Không tìm thấy node')}</p>}
+          </div>}
+        </div>
+        <button type="button" className={`ghost-button graph-focus ${focused ? 'active' : ''}`} aria-pressed={focused} disabled={!selectedId} onClick={() => setFocused(value => !value)}>
+          <Focus size={14} />{focused ? tr('Xem toàn bộ') : tr('Tập trung')}
+        </button>
+      </div>
       <div className="graph-zoom-controls">
+        <button type="button" className={`ghost-button relation-toggle ${showRelations ? 'active' : ''}`} aria-label={tr('Tên quan hệ')} aria-pressed={showRelations} onClick={() => setShowRelations(value => !value)} title={tr('Tên quan hệ')}><Tags size={15} /></button>
         <button type="button" className="ghost-button" aria-label={tr('Thu nhỏ')} onClick={() => changeZoom(1 / 1.2)}><Minus size={15} /></button>
         <span className="graph-zoom-value" aria-live="polite">{Math.round(zoom * 100)}%</span>
         <button type="button" className="ghost-button" aria-label={tr('Phóng to')} onClick={() => changeZoom(1.2)}><Plus size={15} /></button>
-        <button type="button" className="ghost-button graph-fit" onClick={() => cyRef.current?.fit(undefined, 60)}><Maximize2 size={14} />{tr('Vừa khung')}</button>
+        <button type="button" className="ghost-button graph-fit" onClick={() => cyRef.current?.fit(focused ? cyRef.current?.elements().not('.context-hidden') : undefined, 60)}><Maximize2 size={14} />{tr('Vừa khung')}</button>
       </div>
     </div>
     <div ref={containerRef} className="graph-canvas" role="img" aria-label={tr('Graph chuỗi sản xuất: {0} node, {1} quan hệ', topology.nodes.length, topology.edges.length)} />
     <div className="graph-help">{tr('Kéo để di chuyển · Cuộn để zoom · Chọn thẻ để xem liên kết')}</div>
+    <div className="graph-selection">
+      {selectedNode ? <>
+      <span className={`graph-selection-swatch ${selectedNode.label.toLowerCase()}`} />
+      <div className="graph-selection-name"><small>{tr('NODE ĐANG CHỌN')} · {tr(NODE_TYPES[selectedNode.label.toLowerCase()] ?? selectedNode.label)}</small><strong>{nodeName(selectedNode.properties, selectedNode.id)}</strong><code>{selectedNode.id}</code></div>
+      <div className="graph-selection-links"><small>{tr('LIÊN KẾT TRỰC TIẾP')} · {related.length}</small><div>
+        {related.length ? related.map(({ edge, other }) => <button type="button" key={`${edge.id ?? edge.type}:${edge.source}:${edge.target}`} onClick={() => selectNode(other.id)} title={`${edge.type} · ${other.id}`}>
+          <span>{edge.source === selectedId ? '→' : '←'}</span> {nodeName(other.properties, other.id)} <small>{edge.type}</small>
+        </button>) : <span className="muted">{tr('Không có liên kết trực tiếp')}</span>}
+      </div></div></> : <span className="muted">{tr('Chọn một node để xem liên kết')}</span>}
+    </div>
   </div>;
 };

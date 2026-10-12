@@ -517,3 +517,61 @@ button.order-card.selected{border-left-color:var(--accent);background:var(--acce
 .legend-dot.impacted{background:#ffd5de;border:1px solid #d97756;border-radius:2px;box-shadow:none}
 
 @media(max-width:760px){.result-banner{flex-wrap:wrap}.severity-badge{margin-left:0}}
+
+/* The graph toolbar is an exploration surface; the node summary stays readable outside the canvas. */
+.graph-wrap{height:730px}
+.graph-wrap>.graph-canvas-frame{display:flex;flex-direction:column;overflow:visible;background-image:radial-gradient(#e6e8eb .8px,transparent .8px)}
+.graph-canvas{flex:1;min-height:0;height:auto}
+.graph-toolbar{gap:12px}
+.graph-explore{display:flex;align-items:center;gap:8px;min-width:0;pointer-events:auto}
+.graph-search{position:relative;display:flex;align-items:center;gap:8px;width:260px;max-width:38vw;min-height:36px;padding:0 10px;background:#fff;border:1px solid #d8dce1;border-radius:3px;box-shadow:0 2px 7px #252c360a;color:var(--text-3)}
+.graph-search:focus-within{border-color:var(--accent);box-shadow:0 0 0 2px #e6003314}
+.graph-search>svg{flex:none}
+.graph-search input{min-width:0;flex:1;padding:8px 0;border:0;outline:0;background:transparent;color:var(--text);font-size:12px}
+.graph-search input::placeholder{color:#858b92}
+.graph-search>button{display:grid;place-items:center;border:0;background:transparent;color:var(--text-3);cursor:pointer;padding:2px}
+.graph-search-results{position:absolute;top:calc(100% + 5px);left:-1px;right:-1px;z-index:10;max-height:290px;overflow:auto;padding:4px;background:#fff;border:1px solid var(--line);border-radius:3px;box-shadow:0 12px 25px #1b27321f}
+.graph-search-results button{display:grid;gap:3px;width:100%;padding:9px 10px;text-align:left;border:0;border-bottom:1px solid #f0f1f2;background:#fff;cursor:pointer}
+.graph-search-results button:last-child{border-bottom:0}
+.graph-search-results button:hover,.graph-search-results button:focus-visible{background:var(--accent-soft)}
+.graph-search-results strong{color:var(--text-strong);font-size:12px}
+.graph-search-results small{color:var(--text-3);font-size:10px}
+.graph-search-results p{margin:0;padding:12px;color:var(--text-3);font-size:12px}
+.graph-focus{white-space:nowrap}
+.graph-focus.active{border-color:#e6a4b3;background:var(--accent-soft)}
+.graph-focus:disabled{opacity:.45}
+.graph-zoom-controls .relation-toggle{border-right:1px solid var(--line)}
+.graph-selection{position:relative;z-index:2;display:flex;align-items:center;gap:15px;min-height:103px;padding:16px 20px;background:#fff;border-top:1px solid var(--line);box-shadow:0 -4px 16px #28313d08}
+.graph-selection-swatch{align-self:stretch;width:4px;flex:none;background:#6399d6;border-radius:2px}
+.graph-selection-swatch.equipment,.graph-selection-swatch.machine{background:#57a88f}
+.graph-selection-swatch.batch,.graph-selection-swatch.part{background:#a488cc}
+.graph-selection-swatch.department{background:#99a4b3}
+.graph-selection-swatch.incidentevent,.graph-selection-swatch.fault{background:#d9a360}
+.graph-selection-swatch.machineevent{background:#d48c7b}
+.graph-selection-swatch.profilecheck{background:#90b488}
+.graph-selection-name{display:grid;gap:3px;min-width:220px;max-width:290px}
+.graph-selection-name small,.graph-selection-links>small{color:var(--text-3);font-size:10px;font-weight:700;letter-spacing:.7px}
+.graph-selection-name strong{font-size:15px;color:var(--text-strong)}
+.graph-selection-name code{color:var(--text-3);font-size:10px}
+.graph-selection-links{display:grid;gap:7px;min-width:0;flex:1;padding-left:20px;border-left:1px solid var(--line)}
+.graph-selection-links>div{display:flex;align-items:center;flex-wrap:wrap;gap:6px;max-height:56px;overflow:auto}
+.graph-selection-links button{padding:5px 8px;border:1px solid #e5e5e5;border-radius:2px;background:#fafafa;color:var(--text);font-size:11px;cursor:pointer}
+.graph-selection-links button:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.graph-selection-links button span{color:var(--accent);font-weight:700}
+.graph-selection-links button small{display:block;margin:2px 0 0 13px;color:var(--text-3);font-size:9px}
+.graph-help{bottom:115px}
+@media(max-width:760px){
+  .graph-wrap{height:620px}
+  .graph-toolbar{position:relative;z-index:5;flex:none;flex-direction:column;align-items:stretch;gap:6px;top:auto;left:auto;right:auto;padding:10px;border-bottom:1px solid var(--line);background:#ffffffed;pointer-events:auto}
+  .graph-explore{width:100%}
+  .graph-search{max-width:none;width:auto;flex:1}
+  .graph-zoom-controls{width:fit-content;margin-left:auto}
+  .graph-help{display:none}
+  .graph-selection{align-items:flex-start;gap:10px;min-height:134px;padding:12px;flex-wrap:wrap}
+  .graph-selection-swatch{min-height:42px}
+  .graph-selection-name{min-width:0;max-width:calc(100% - 18px)}
+  .graph-selection-name strong{font-size:13px}
+  .graph-selection-links{flex-basis:100%;padding:8px 0 0 14px;border-left:0;border-top:1px solid var(--line)}
+  .graph-selection-links>div{max-height:45px;overflow-x:auto;flex-wrap:nowrap}
+  .graph-selection-links button{white-space:nowrap}
+}
