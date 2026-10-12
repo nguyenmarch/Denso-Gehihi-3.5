@@ -122,17 +122,17 @@ const toElements = (topology: GraphTopology): ElementDefinition[] => {
 };
 
 const STYLE: cytoscape.StylesheetJson = [
-  { selector: 'node', style: { label: 'data(label)', 'background-color': '#378bf3', color: '#b9d6ea', 'font-size': 13, 'text-valign': 'bottom', 'text-margin-y': 5, 'text-wrap': 'wrap', 'text-max-width': '150px', width: 22, height: 22, 'border-width': 2, 'border-color': '#0b2338', 'transition-property': 'background-color, border-color, opacity', 'transition-duration': 250 } as cytoscape.Css.Node },
+  { selector: 'node', style: { label: 'data(label)', 'background-color': '#378bf3', color: '#444444', 'font-size': 13, 'text-valign': 'bottom', 'text-margin-y': 5, 'text-wrap': 'wrap', 'text-max-width': '150px', width: 22, height: 22, 'border-width': 2, 'border-color': '#ffffff', 'transition-property': 'background-color, border-color, opacity', 'transition-duration': 250 } as cytoscape.Css.Node },
   { selector: 'node[category = "Equipment"]', style: { 'background-color': '#15cbb1', shape: 'round-rectangle' } },
   { selector: 'node[category = "Batch"]', style: { 'background-color': '#a482fb' } },
   { selector: 'node[category = "Department"]', style: { 'background-color': '#5d7891', shape: 'round-rectangle' } },
   { selector: 'node[category = "IncidentEvent"]', style: { 'background-color': '#d68745', shape: 'diamond' } },
   { selector: 'node[category = "MachineEvent"]', style: { 'background-color': '#e5604f', shape: 'diamond' } },
   { selector: 'node[category = "ProfileCheck"]', style: { 'background-color': '#6fbf73', shape: 'tag' } },
-  { selector: 'edge', style: { width: 1.4, 'curve-style': 'bezier', 'line-color': '#2b4d68', 'target-arrow-color': '#2b4d68', 'target-arrow-shape': 'triangle', 'arrow-scale': 0.8, 'font-size': 7, color: '#ffb48f', 'text-rotation': 'autorotate', 'text-background-color': '#081a2c', 'text-background-opacity': 0.85, 'text-background-padding': '2px' } as cytoscape.Css.Edge },
-  { selector: 'edge[walked = 1]', style: { width: 1.8, 'line-color': '#3d6889', 'target-arrow-color': '#3d6889' } },
+  { selector: 'edge', style: { width: 1.4, 'curve-style': 'bezier', 'line-color': '#b5bdc5', 'target-arrow-color': '#b5bdc5', 'target-arrow-shape': 'triangle', 'arrow-scale': 0.8, 'font-size': 7, color: '#745027', 'text-rotation': 'autorotate', 'text-background-color': '#ffffff', 'text-background-opacity': 0.85, 'text-background-padding': '2px' } as cytoscape.Css.Edge },
+  { selector: 'edge[walked = 1]', style: { width: 1.8, 'line-color': '#929da7', 'target-arrow-color': '#929da7' } },
   { selector: 'edge[walked = 0]', style: { 'line-style': 'dashed', 'line-dash-pattern': [4, 4], opacity: 0.45 } as cytoscape.Css.Edge },
-  { selector: 'edge:selected, edge.hover', style: { label: 'data(label)', color: '#9fc3da' } },
+  { selector: 'edge:selected, edge.hover', style: { label: 'data(label)', color: '#444444' } },
   { selector: '.faded', style: { opacity: 0.6 } },
   { selector: 'node[category = "machine"], node[category = "Machine"]', style: { 'background-color': '#15cbb1', shape: 'round-rectangle' } },
   { selector: 'node[category = "process"], node[category = "Process"]', style: { 'background-color': '#378bf3', shape: 'ellipse' } },
@@ -140,11 +140,11 @@ const STYLE: cytoscape.StylesheetJson = [
   { selector: 'node[category = "fault"], node[category = "Fault"]', style: { 'background-color': '#d68745', shape: 'diamond' } },
   { selector: 'node[category = "part"], node[category = "Part"]', style: { 'background-color': '#a482fb', shape: 'hexagon' } },
   { selector: 'node[category = "document"], node[category = "Document"]', style: { 'background-color': '#75a5d3', shape: 'rectangle' } },
-  { selector: 'edge.neighbor', style: { opacity: 1, width: 2.5, 'line-color': '#5ecbfa', 'target-arrow-color': '#5ecbfa' } },
-  { selector: 'node.impacted', style: { 'background-color': 'mapData(impact, 0, 1, #f5b04a, #ff4d5e)', 'border-color': '#ffd7a0', 'border-width': 3, width: 28, height: 28, color: '#ffe3c2', 'font-weight': 'bold' } as cytoscape.Css.Node },
-  { selector: 'node.origin', style: { 'background-color': '#ff3048', 'border-color': '#ffffff', 'border-width': 4, width: 34, height: 34, color: '#ffffff', 'font-weight': 'bold' } as cytoscape.Css.Node },
-  { selector: 'edge.propagation', style: { width: 3, 'line-color': '#ff8a5c', 'target-arrow-color': '#ff8a5c', label: 'data(label)', opacity: 1, 'line-style': 'solid', 'z-index': 10 } as cytoscape.Css.Edge },
-  { selector: 'node.selected', style: { 'underlay-color': '#5ecbfa', 'underlay-opacity': 0.35, 'underlay-padding': 7, 'underlay-shape': 'ellipse' } as cytoscape.Css.Node },
+  { selector: 'edge.neighbor', style: { opacity: 1, width: 2.5, 'line-color': '#e60033', 'target-arrow-color': '#e60033' } },
+  { selector: 'node.impacted', style: { 'background-color': 'mapData(impact, 0, 1, #f5b04a, #e60033)', 'border-color': '#ffd7a0', 'border-width': 3, width: 28, height: 28, color: '#943823', 'font-weight': 'bold' } as cytoscape.Css.Node },
+  { selector: 'node.origin', style: { 'background-color': '#e60033', 'border-color': '#ffffff', 'border-width': 4, width: 34, height: 34, color: '#bf002b', 'font-weight': 'bold' } as cytoscape.Css.Node },
+  { selector: 'edge.propagation', style: { width: 3, 'line-color': '#cf623f', 'target-arrow-color': '#cf623f', label: 'data(label)', opacity: 1, 'line-style': 'solid', 'z-index': 10 } as cytoscape.Css.Edge },
+  { selector: 'node.selected', style: { 'underlay-color': '#e60033', 'underlay-opacity': 0.35, 'underlay-padding': 7, 'underlay-shape': 'ellipse' } as cytoscape.Css.Node },
 ];
 
 export const GraphCanvas: React.FC<GraphCanvasProps> = ({ topology, impactedNodes, originId, selectedId, onNodeClick }) => {

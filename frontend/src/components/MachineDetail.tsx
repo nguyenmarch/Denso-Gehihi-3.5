@@ -53,7 +53,7 @@ export function MachineDetail({ actor, machineId, onBack, onOpenIncident }: Mach
     <div className="machine-layout">
       <section className="panel machine-signals">
         <div className="panel-heading">
-          <div><h2>Tín hiệu hoạt động</h2><p>Mẫu mỗi {data?.step_seconds ?? 2} giây. Vùng xám là lúc máy dừng; vùng xanh là bất thường đang chọn.</p></div>
+          <div><h2>Tín hiệu hoạt động</h2><p>Mẫu mỗi {data?.step_seconds ?? 2} giây. Vùng xám là lúc máy dừng; vùng hồng là bất thường đang chọn.</p></div>
           <div className="range-tabs" role="group" aria-label="Khoảng thời gian">
             {RANGES.map(([m, text]) => <button key={m} type="button" className={m === minutes ? 'active' : ''} aria-pressed={m === minutes} onClick={() => setMinutes(m)}>{text}</button>)}
           </div>

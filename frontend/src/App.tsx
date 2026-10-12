@@ -207,7 +207,7 @@ export const App: React.FC = () => {
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <div className="brand"><div className="brand-mark"><BrainCircuit size={22} /></div><div><strong>Incident<span>Navigator</span></strong><small>Demo dữ liệu synthetic</small></div></div>
+        <div className="brand" aria-label="DENSO — Crafting the Core"><strong>DENSO</strong><small>Crafting the Core</small></div>
         <nav aria-label="Không gian làm việc">
           <p className="nav-label">KHÔNG GIAN LÀM VIỆC</p>
           <button type="button" className={`nav-item ${view === 'incidents' ? 'active' : ''}`} onClick={() => openView('incidents')}>
@@ -235,7 +235,6 @@ export const App: React.FC = () => {
                 </select></label>
               : <div><strong>Chế độ demo</strong><small>{actors.status === 'loading' ? 'Đang tải actor…' : 'Chưa có actor'}</small></div>}
           </div>
-          <p className="sidebar-note">Chế độ trình diễn, không đăng nhập · không điều khiển máy thật.</p>
         </div>
       </aside>
 
