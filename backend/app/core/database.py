@@ -1,5 +1,13 @@
+"""
+TODO (handoff - B: Neo4j connectivity & migrations)
+- Add migrations/seed helpers under `backend/data/` and document usage
+- Ensure connector exposes health/verify methods and handles unavailable DB
+- Document idempotent seed process (no duplicates on rerun)
+"""
+
 from neo4j import AsyncGraphDatabase, AsyncDriver
 from app.core.config import settings
+import asyncio
 
 class Neo4jConnector:
     def __init__(self):
@@ -10,6 +18,8 @@ class Neo4jConnector:
             self.driver = AsyncGraphDatabase.driver(
                 settings.NEO4J_URI,
                 auth=(settings.NEO4J_USER, settings.NEO4J_PASSWORD),
+                connection_timeout=3,
+                connection_acquisition_timeout=3,
             )
         return self.driver
 
@@ -17,7 +27,7 @@ class Neo4jConnector:
         if self.driver is None:
             await self.connect()
         try:
-            await self.driver.verify_connectivity()
+            await asyncio.wait_for(self.driver.verify_connectivity(), timeout=2)
             return True
         except Exception:
             return False

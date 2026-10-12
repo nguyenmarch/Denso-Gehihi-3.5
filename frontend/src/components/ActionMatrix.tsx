@@ -1,23 +1,39 @@
+import { tr } from '../i18n';
 import React from 'react';
-import { Check, Circle } from 'lucide-react';
+import { Info } from 'lucide-react';
 
 interface ActionMatrixProps {
+  // `SimulationResult.actions_by_department`: DEP_* → action, plus an optional CONTEXT note.
   actions: Record<string, string>;
+  // Department id → display name, taken from Department nodes in the topology.
+  departmentNames?: Record<string, string>;
 }
 
-export const ActionMatrix: React.FC<ActionMatrixProps> = ({ actions }) => {
-  const [completed, setCompleted] = React.useState<Record<string, boolean>>({});
+// Read-only playbook reference: the simulation creates no work, so there is nothing to tick off here.
+export const ActionMatrix: React.FC<ActionMatrixProps> = ({ actions, departmentNames = {} }) => {
+  const context = actions.CONTEXT;
+  const entries = Object.entries(actions).filter(([key]) => key !== 'CONTEXT');
+
   return (
     <div className="actions-area">
-      <div className="actions-heading"><div><p className="eyebrow">RESPONSE MATRIX</p><h2>Recommended actions</h2><p>Role-based next steps for the incident response team.</p></div><span className="status-chip"><span className="status-dot" /> Live SOP</span></div>
-      <div className="actions-grid">
-        {Object.entries(actions).filter(([key]) => key !== 'CONTEXT').map(([dept, action]) => (
-          <article key={dept} className={`action-card ${completed[dept] ? 'done' : ''}`}>
-            <div className="action-card-top"><span className="dept-avatar">{dept.replace('DEP_', '').slice(0, 2)}</span><div><strong>{dept.replace('DEP_', '')}</strong><small>Priority response</small></div><span className="high-badge">HIGH</span></div><p>{action}</p>
-            <label className="complete-check"><input type="checkbox" checked={!!completed[dept]} onChange={e => setCompleted({ ...completed, [dept]: e.target.checked })} />{completed[dept] ? <Check size={14} /> : <Circle size={14} />} {completed[dept] ? 'Marked complete' : 'Mark as complete'}</label>
-          </article>
-        ))}
+      <div className="actions-heading">
+        <div><p className="eyebrow">{tr("MA TRẬN PHẢN ỨNG")}</p><h2>{tr("Hành động theo playbook")}</h2><p>{tr("Playbook của thiết bị và loại sự cố này, chia theo bộ phận. Chỉ để tham khảo, không tạo việc.")}</p></div>
       </div>
+      {context && <div className="context-note"><Info size={14} /><span>{context}</span></div>}
+      {entries.length === 0 && !context && <div className="state-box compact"><p>{tr("Backend không trả về hành động nào cho lần mô phỏng này.")}</p></div>}
+      {entries.length > 0 && (
+        <div className="actions-grid">
+          {entries.map(([dept, action]) => {
+            const short = dept.replace(/^DEP_/, '');
+            return (
+              <article key={dept} className="action-card">
+                <div className="action-card-top"><span className="dept-avatar">{short.slice(0, 2)}</span><div><strong>{departmentNames[dept] ?? short}</strong><small>{dept}</small></div></div>
+                <p>{action}</p>
+              </article>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };

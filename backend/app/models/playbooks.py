@@ -18,3 +18,19 @@ DEFAULT_ACTION_RULES = {
         "DEP_SCM": "Notify downstream planning of capacity loss and confirm dispatch commitments for at-risk orders."
     }
 }
+
+# Each playbook above is written for one asset (the oven heater, the SMT capacitor lot, the AOI
+# station), so incident guidance is selected by (asset, incident type). Any other pair is a
+# knowledge gap rather than a playbook written for a different machine.
+CONTEXT_GUIDANCE = {
+    ("EQ_OVEN_01", "MACHINE_BREAKDOWN"): "MACHINE_BREAKDOWN",
+    ("STEP_SMT", "MATERIAL_DEFECT"): "MATERIAL_DEFECT",
+    ("EQ_AOI_01", "CYCLE_TIME_SPIKE"): "CYCLE_TIME_SPIKE",
+}
+
+# Asset types an incident of each type can originate from.
+ORIGIN_TYPES = {
+    "MACHINE_BREAKDOWN": {"Equipment"},
+    "CYCLE_TIME_SPIKE": {"Equipment"},
+    "MATERIAL_DEFECT": {"ProcessStep", "Batch"},
+}

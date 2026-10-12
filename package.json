@@ -1,0 +1,15 @@
+{
+  "name": "incident-navigator-local-demo",
+  "private": true,
+  "scripts": {
+    "setup": "node scripts/tasks.mjs setup",
+    "test": "node scripts/tasks.mjs test",
+    "build": "npm --prefix frontend run build",
+    "preflight": "node scripts/tasks.mjs preflight",
+    "demo": "node scripts/tasks.mjs demo",
+    "dev": "node scripts/tasks.mjs dev",
+    "ui:language": "node scripts/ui_language_smoke.mjs",
+    "ui:smoke": "node scripts/ui_smoke.mjs --shots /tmp/inav-ui-shots"
+  },
+  "devDependencies": { "@playwright/test": "^1.57.0" }
+}

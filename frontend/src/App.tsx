@@ -1,44 +1,359 @@
-import React, { useCallback, useState } from 'react';
-import { Activity, AlertTriangle, Boxes, BrainCircuit, CheckCircle2, ChevronRight, Factory, Gauge, ShieldCheck, Wifi } from 'lucide-react';
+import { tr, locale, useLanguage, setLanguage, Language } from './i18n';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Activity, AlertTriangle, Boxes, BrainCircuit, CheckCircle2, ClipboardList, GitBranch, GraduationCap, LoaderCircle, Network, RefreshCw, Wifi, WifiOff } from 'lucide-react';
 import { IncidentTrigger } from './components/IncidentTrigger';
 import { GraphCanvas } from './components/GraphCanvas';
 import { ActionMatrix } from './components/ActionMatrix';
-import { triggerSimulation } from './services/api';
-import { IncidentType, SimulationResult } from './types';
+import { ImpactTable } from './components/ImpactTable';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { API_BASE, fetchHealth, fetchTopology, toApiError, triggerSimulation } from './services/api';
+import { ApiErrorInfo, GraphTopology, HealthStatus, IncidentType, SimulationResult } from './types';
+import { SyncStatus } from './components/SyncStatus';
+import { IncidentBoard } from './components/IncidentBoard';
+import { IncidentDetail } from './components/IncidentDetail';
+import { LessonReview } from './components/LessonReview';
+import { ExpertInspector } from './components/ExpertInspector';
+import { MachineList } from './components/MachineList';
+import { MachineDetail } from './components/MachineDetail';
+import { ROLE_LABELS } from './components/labels';
+import { Actor, Incident, listActors, Role } from './services/api';
 import './app.css';
 
-export const App: React.FC = () => {
-  const [simResult, setSimResult] = useState<SimulationResult | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+type Remote<T> = { status: 'loading' } | { status: 'ready'; data: T } | { status: 'error'; error: ApiErrorInfo };
+type View = 'incidents' | 'machines' | 'graph' | 'lessons';
 
-  const handleSimulate = useCallback(async (nodeId: string, type: IncidentType, severity = 1) => {
-    setLoading(true);
-    setError('');
+interface SimulationRun {
+  id: number;
+  // An alert raised by an incident, or a what-if simulation run from this tab.
+  kind: 'alert' | 'simulation';
+  at: Date;
+  nodeId: string;
+  type: IncidentType;
+  severity: number;
+  result?: SimulationResult;
+  error?: ApiErrorInfo;
+}
+
+const HEALTH_POLL_MS = 15000;
+const DEFAULT_ORIGIN = 'EQ_OVEN_01';
+const PROPAGATION_RELATIONS = new Set(['OPERATES_IN', 'FLOWS_TO', 'AFFECTS']);
+// Graph label → legend swatch. Only labels present in the topology are listed; GraphCanvas matches fault/part/document case-insensitively.
+const LEGEND: [label: string, swatch: string, text: string][] = [
+  ['processstep', 'process', 'Công đoạn'], ['equipment', 'equipment', 'Thiết bị'], ['batch', 'batch', 'Lô'],
+  ['department', 'department', 'Bộ phận'], ['incidentevent', 'incident', 'Kiểu lỗi đã biết'], ['machineevent', 'machine-event', 'Event máy'],
+  ['profilecheck', 'profile-check', 'Kiểm tra profile'], ['fault', 'fault', 'Lỗi'], ['part', 'part', 'Linh kiện'], ['document', 'document', 'Tài liệu'],
+];
+
+const ACTOR_KEY = 'inav-actor';
+// Per-viewer convenience only: storage may be unavailable (private window), so every access is guarded.
+const readActorId = () => { try { return localStorage.getItem(ACTOR_KEY) ?? ''; } catch { return ''; } };
+const writeActorId = (id: string) => { try { localStorage.setItem(ACTOR_KEY, id); } catch { /* not remembered */ } };
+// The open incident and view live in the URL so a reload reopens the same screen.
+const readParam = (name: string) => new URLSearchParams(window.location.search).get(name) ?? '';
+const writeParam = (name: string, value: string) => {
+  const url = new URL(window.location.href);
+  if (value) url.searchParams.set(name, value); else url.searchParams.delete(name);
+  window.history.replaceState(null, '', url);
+};
+const readView = (): View => { const v = readParam('view'); return v === 'machines' || v === 'graph' || v === 'lessons' ? v : 'incidents'; };
+
+const formatTime = (d: Date) => d.toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(-2).map(w => w[0]).join('').toUpperCase();
+
+export const App: React.FC = () => {
+  const language = useLanguage();
+  const [topology, setTopology] = useState<Remote<GraphTopology>>({ status: 'loading' });
+  const [health, setHealth] = useState<Remote<HealthStatus>>({ status: 'loading' });
+  const [selectedNodeId, setSelectedNodeId] = useState('');
+  const [runs, setRuns] = useState<SimulationRun[]>([]);
+  const [simLoading, setSimLoading] = useState(false);
+  const [actors, setActors] = useState<Remote<Actor[]>>({ status: 'loading' });
+  const [actorId, setActorId] = useState(readActorId);
+  const [incidents, setIncidents] = useState<Incident[]>([]);
+  const [incidentId, setIncidentId] = useState(() => readParam('incident'));
+  const [incidentType, setIncidentType] = useState<IncidentType>('MACHINE_BREAKDOWN');
+  const [severity, setSeverity] = useState(1);
+  const [requestedView, setRequestedView] = useState<View>(readView);
+  const [machineId, setMachineId] = useState(() => readParam('machine'));
+  const [lastSync, setLastSync] = useState<number>();
+  const shownAlertId = useRef('');
+
+  const loadTopology = useCallback(async () => {
+    setTopology({ status: 'loading' });
     try {
-      const data = await triggerSimulation(nodeId, type, severity);
-      setSimResult(data);
-    } catch {
-      setError('Không thể kết nối Incident Engine. Hãy kiểm tra backend và Neo4j.');
-    } finally {
-      setLoading(false);
+      setTopology({ status: 'ready', data: await fetchTopology() });
+    } catch (err) {
+      setTopology({ status: 'error', error: toApiError(err) });
     }
   }, []);
+
+  const loadHealth = useCallback(async () => {
+    try {
+      setHealth({ status: 'ready', data: await fetchHealth() });
+    } catch (err) {
+      setHealth({ status: 'error', error: toApiError(err) });
+    }
+  }, []);
+
+  const loadActors = useCallback(async () => {
+    setActors({ status: 'loading' });
+    try {
+      setActors({ status: 'ready', data: await listActors() });
+    } catch (err) {
+      setActors({ status: 'error', error: toApiError(err) });
+    }
+  }, []);
+
+  useEffect(() => { loadTopology(); }, [loadTopology]);
+  useEffect(() => { loadActors(); }, [loadActors]);
+  useEffect(() => {
+    loadHealth();
+    const timer = window.setInterval(loadHealth, HEALTH_POLL_MS);
+    return () => window.clearInterval(timer);
+  }, [loadHealth]);
+
+  const graph = topology.status === 'ready' ? topology.data : undefined;
+  const nodes = graph?.nodes ?? [];
+
+  // Default origin once the real topology arrives: the demo node if present, otherwise the first node.
+  useEffect(() => {
+    if (!graph || graph.nodes.some(n => n.id === selectedNodeId)) return;
+    setSelectedNodeId(graph.nodes.find(n => n.id === DEFAULT_ORIGIN)?.id ?? graph.nodes[0]?.id ?? '');
+  }, [graph, selectedNodeId]);
+
+  const handleSimulate = useCallback(async (nodeId: string, type: IncidentType, severity: number) => {
+    const run: SimulationRun = { id: Date.now(), kind: 'simulation', at: new Date(), nodeId, type, severity };
+    setSimLoading(true);
+    try {
+      run.result = await triggerSimulation(nodeId, type, severity);
+    } catch (err) {
+      run.error = toApiError(err);
+    } finally {
+      setRuns(prev => [run, ...prev].slice(0, 8));
+      setSimLoading(false);
+    }
+  }, []);
+
+  const actorList = actors.status === 'ready' ? actors.data : [];
+  const actor = actorList.find(a => a.id === actorId) ?? actorList.find(a => a.role === 'operator');
+  const role = actor?.role;
+  const changeActor = (id: string) => { setIncidents([]); setLastSync(undefined); setActorId(id); writeActorId(id); };
+  const selectIncident = useCallback((id: string) => { setIncidentId(id); writeParam('incident', id); }, []);
+  const upsertIncident = useCallback((incident: Incident) => setIncidents(prev => prev.map(i => i.id === incident.id ? incident : i)), []);
+  const selectedIncident = incidents.find(i => i.id === incidentId);
+  const changeSeverity = useCallback((value: number) => setSeverity(Math.round(value * 10) / 10), []);
+
+  // Technicians have no graph; only experts review lessons.
+  const views: View[] = role === 'technician' ? ['incidents'] : role === 'expert' ? ['incidents', 'machines', 'graph', 'lessons'] : ['incidents', 'machines', 'graph'];
+  const view = views.includes(requestedView) ? requestedView : 'incidents';
+  const openView = (next: View) => { setRequestedView(next); writeParam('view', next === 'incidents' ? '' : next); };
+  const openMachine = (id: string) => { setMachineId(id); writeParam('machine', id); };
+  const openIncident = (id: string) => { selectIncident(id); openView('incidents'); };
+
+  // Mark the newest active alert on the graph, whether it came from this tab's command or from polling.
+  useEffect(() => {
+    const alert = incidents.find(i => i.state === 'alert' && i.simulation);
+    if (!alert || alert.id === shownAlertId.current) return;
+    shownAlertId.current = alert.id;
+    setRuns(prev => [{ id: Date.now(), kind: 'alert' as const, at: new Date(alert.created_at), nodeId: alert.simulation!.origin_id, type: alert.incident_type, severity: alert.severity, result: alert.simulation }, ...prev].slice(0, 8));
+  }, [incidents]);
+
+  const latest = runs[0];
+  const lastSuccess = runs.find(r => r.result)?.result;
+  // Only highlight the graph for the latest run; a failed run clears the highlight instead of showing stale impact.
+  const shown = latest?.result;
+
+  const stats = useMemo(() => {
+    if (!graph) return undefined;
+    const byLabel: Record<string, number> = {};
+    graph.nodes.forEach(n => { byLabel[n.label] = (byLabel[n.label] ?? 0) + 1; });
+    return { byLabel, propagationEdges: graph.edges.filter(e => PROPAGATION_RELATIONS.has(e.type)).length };
+  }, [graph]);
+  const legend = useMemo(() => {
+    const present = new Set(nodes.map(n => n.label.toLowerCase()));
+    return LEGEND.filter(([label]) => present.has(label));
+  }, [nodes]);
+
+  const departmentNames = useMemo(() => Object.fromEntries(nodes.filter(n => n.label === 'Department').map(n => [n.id, String(n.properties.name ?? n.id)])), [nodes]);
+  const nodeName = (id: string) => { const n = nodes.find(x => x.id === id); return n && typeof n.properties.name === 'string' ? n.properties.name : id; };
+
+  const backendDown = health.status === 'error';
+  const dbDown = health.status === 'ready' && health.data.status !== 'ok';
+  const statusText = health.status === 'loading' ? tr("Đang kiểm tra backend…") : backendDown ? tr("Không kết nối được backend") : dbDown ? tr("Neo4j không sẵn sàng") : tr("Backend & Neo4j đã kết nối");
+  const statusTone = health.status === 'loading' ? 'idle' : backendDown || dbDown ? 'bad' : 'good';
+
+  const disabledReason =
+    backendDown || dbDown ? tr("Backend hoặc Neo4j chưa sẵn sàng.")
+    : topology.status === 'loading' ? tr("Đang tải topology…")
+    : topology.status === 'error' ? tr("Cần tải được topology trước khi mô phỏng.")
+    : nodes.length === 0 ? tr("Graph trống — hãy chạy migration và seed Neo4j.")
+    : undefined;
+
+  const maxHop = shown?.impacted_nodes.reduce((m, n) => Math.max(m, n.distance), 0);
+  const openIncidents = incidents.filter(i => i.state !== 'resolved');
+  const alertCount = incidents.filter(i => i.state === 'alert').length;
+  // Badge = records waiting on this role: operators dispatch alerts and unresolved incidents, technicians work on their assignments.
+  const waiting = role === 'operator' ? incidents.filter(i => i.state === 'alert' || i.state === 'unresolved').length
+    : role === 'technician' ? incidents.filter(i => i.state === 'dispatched' || i.state === 'in_progress').length : 0;
+
+  const heading: Record<View, [string, string]> = {
+    incidents: [
+      role === 'technician' ? tr("Việc của tôi") : role === 'expert' ? tr("Hồ sơ sự cố") : tr("Điều phối sự cố"),
+      role === 'technician' ? tr("Nhận việc, làm theo hướng dẫn và báo cáo kết quả.") : tr("Theo dõi sự cố trên dây chuyền và quyết định xử lý."),
+    ],
+    machines: machineId ? [tr("Hoạt động máy"), tr("Tín hiệu theo thời gian thực và các lần bất thường phát hiện từ dữ liệu.")] : [tr("Giám sát máy"), tr("Trạng thái từng máy, tính từ dữ liệu tín hiệu. Chọn một máy để xem chi tiết.")],
+    graph: [tr("Knowledge graph & mô phỏng"), tr("Theo dõi sự cố lan truyền qua graph chuỗi sản xuất.")],
+    lessons: [tr("Duyệt bài học"), tr("Bài học từ báo cáo kỹ thuật chỉ vào hướng dẫn sau khi chuyên gia chấp nhận.")],
+  };
 
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <div className="brand"><div className="brand-mark"><BrainCircuit size={22} /></div><div><strong>Chain<span>Guard</span></strong><small>Incident Intelligence</small></div></div>
-        <nav><p className="nav-label">WORKSPACE</p><a className="nav-item active"><Activity size={17} /> Command center</a><a className="nav-item"><Boxes size={17} /> Knowledge graph <span className="nav-count">2</span></a><a className="nav-item"><ShieldCheck size={17} /> Response playbooks</a><p className="nav-label nav-space">MONITORING</p><a className="nav-item"><Gauge size={17} /> Line telemetry</a><a className="nav-item"><Factory size={17} /> Production flow</a></nav>
-        <div className="sidebar-status"><div className="status-dot pulse" /><div><strong>All systems nominal</strong><small>Last sync · just now</small></div></div>
-        <div className="user-card"><div className="avatar">NH</div><div><strong>Nguyen Hoang</strong><small>Operations lead</small></div><ChevronRight size={15} /></div>
+        <div className="brand" aria-label="DENSO — Crafting the Core"><strong>DENSO</strong><small>Crafting the Core</small></div>
+        <nav aria-label={tr("Không gian làm việc")}>
+          <p className="nav-label">{tr("KHÔNG GIAN LÀM VIỆC")}</p>
+          <button type="button" className={`nav-item ${view === 'incidents' ? 'active' : ''}`} onClick={() => openView('incidents')}>
+            <ClipboardList size={17} /> {heading.incidents[0]}
+            {waiting > 0 && <span className="nav-count alert" title={tr("{0} sự cố đang chờ bạn xử lý", waiting)}>{waiting}</span>}
+          </button>
+          {views.includes('machines') && <button type="button" className={`nav-item ${view === 'machines' ? 'active' : ''}`} onClick={() => { openView('machines'); openMachine(''); }}>
+            <Activity size={17} />{tr("Giám sát máy")}{" "}</button>}
+          {views.includes('graph') && <button type="button" className={`nav-item ${view === 'graph' ? 'active' : ''}`} onClick={() => openView('graph')}>
+            <Network size={17} />{tr("Graph & mô phỏng")}{" "}</button>}
+          {views.includes('lessons') && <button type="button" className={`nav-item ${view === 'lessons' ? 'active' : ''}`} onClick={() => openView('lessons')}>
+            <GraduationCap size={17} />{tr("Duyệt bài học")}{" "}</button>}
+        </nav>
+
+        <div className="sidebar-bottom">
+          <div className={`sidebar-status ${statusTone}`}><div className={`status-dot ${statusTone === 'good' ? 'pulse' : ''}`} /><div><strong>{statusText}</strong><small>{API_BASE.replace(/^https?:\/\//, '')}</small></div></div>
+          <div className="user-card">
+            <div className="avatar">{actor ? initials(actor.name) : 'DM'}</div>
+            {actor
+              ? <label className="actor-picker"><small>{tr("Vai trò demo")}</small><select aria-label="Actor demo" value={actor.id} onChange={e => changeActor(e.target.value)}>
+                  {(Object.keys(ROLE_LABELS) as Role[]).map(r => <optgroup key={r} label={tr(ROLE_LABELS[r])}>{actorList.filter(a => a.role === r).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</optgroup>)}
+                </select></label>
+              : <div><strong>{tr("Chế độ demo")}</strong><small>{actors.status === 'loading' ? tr("Đang tải actor…") : tr("Chưa có actor")}</small></div>}
+          </div>
+          <label className="language-picker">
+            <small>{tr('Ngôn ngữ')}</small>
+            <select aria-label="Ngôn ngữ / Language" value={language} onChange={event => setLanguage(event.target.value as Language)}>
+              <option value="vi">Tiếng Việt</option>
+              <option value="en">English</option>
+            </select>
+          </label>
+        </div>
       </aside>
+
       <main className="main-content">
-        <header className="topbar"><div><p className="eyebrow">SUNDAY, OCTOBER 04, 2026</p><h1>Good evening, Nguyen <span>✦</span></h1><p className="subheading">Here is what is happening across your production chain.</p></div><div className="top-actions"><div className="live-pill"><span className="live-dot" /> LIVE MONITORING</div><button className="icon-button" aria-label="Notifications"><AlertTriangle size={18} /><i /></button><div className="top-avatar">NH</div></div></header>
-        <section className="kpi-grid"><div className="kpi-card blue"><div className="kpi-icon"><Activity size={19} /></div><span>LINE HEALTH</span><strong>94.8%</strong><small><b className="positive">↑ 2.4%</b> vs last shift</small><div className="sparkline"><i /><i /><i /><i /><i /><i /><i /><i /></div></div><div className="kpi-card"><div className="kpi-icon violet"><Boxes size={19} /></div><span>ACTIVE BATCHES</span><strong>12</strong><small><b>3</b> high priority</small><div className="mini-bars"><i /><i /><i /><i /><i /></div></div><div className="kpi-card"><div className="kpi-icon amber"><AlertTriangle size={19} /></div><span>OPEN INCIDENTS</span><strong>{simResult ? simResult.impacted_nodes.length : '03'}</strong><small><b className="warning">02</b> require attention</small><div className="incident-lines"><i /><i /><i /></div></div><div className="kpi-card"><div className="kpi-icon green"><CheckCircle2 size={19} /></div><span>AVG. RESPONSE</span><strong>08<span>m</span> 42<span>s</span></strong><small><b className="positive">↓ 18%</b> faster this week</small><div className="progress"><i /></div></div></section>
-        <section className="content-grid"><div className="panel graph-panel"><div className="panel-heading"><div><div className="heading-row"><h2>Propagation topology</h2><span className="tag blue-tag">LIVE GRAPH</span></div><p>Trace impact across your entire production chain</p></div><div className="graph-legend"><span><i className="legend-dot process" />Process</span><span><i className="legend-dot equipment" />Equipment</span><span><i className="legend-dot batch" />Batch</span></div></div><div className="graph-wrap"><GraphCanvas highlightNodes={simResult?.impacted_nodes.map(n => n.node_id)} /></div><div className="graph-footer"><span><Wifi size={14} /> Graph synchronized</span><span>Depth decay <b>0.75×</b></span><span>Max hops <b>4</b></span></div></div><div className="panel activity-panel"><div className="panel-heading"><div><h2>Recent activity</h2><p>Events from the production floor</p></div><button className="more-button">View all <ChevronRight size={14} /></button></div><div className="activity-list"><div className="activity-item"><div className="event-icon red"><AlertTriangle size={15} /></div><div><strong>Heater anomaly detected</strong><p>EQ_OVEN_01 · Reflow Soldering</p></div><time>2m ago</time></div><div className="activity-item"><div className="event-icon cyan"><Activity size={15} /></div><div><strong>Batch lineage updated</strong><p>BATCH_2026_001 moved to Reflow</p></div><time>8m ago</time></div><div className="activity-item"><div className="event-icon green"><CheckCircle2 size={15} /></div><div><strong>QA gate passed</strong><p>AOI Inspection · 98.6% yield</p></div><time>14m ago</time></div><div className="activity-item"><div className="event-icon purple"><Boxes size={15} /></div><div><strong>New material lot received</strong><p>Capacitors · Supplier VN-204</p></div><time>21m ago</time></div></div></div></section>
-        <section className="simulation-section"><div className="section-title"><div><p className="eyebrow">WHAT-IF ANALYSIS</p><h2>Simulate an incident</h2><p>See how a disruption propagates before it impacts your line.</p></div><div className="engine-state"><span className="status-dot" /> Engine ready</div></div><IncidentTrigger onRunSimulation={handleSimulate} loading={loading} />{error && <div className="error-banner"><AlertTriangle size={16} />{error}</div>}</section>
-        {simResult && <section className="results-section"><div className="result-banner"><div className="result-icon"><BrainCircuit size={20} /></div><div><strong>Simulation complete</strong><p>{simResult.origin_id} · {simResult.impacted_nodes.length} downstream nodes affected</p></div><span className="severity-badge">IMPACT MAPPED</span></div><ActionMatrix actions={simResult.actions_by_department} /></section>}
+        <header className="topbar">
+          <div><p className="eyebrow">{new Date().toLocaleDateString(locale(), { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }).toUpperCase()}</p><h1>{heading[view][0]}</h1><p className="subheading">{heading[view][1]}</p></div>
+          <div className="top-actions"><SyncStatus lastSync={lastSync} /></div>
+        </header>
+
+        {(backendDown || dbDown) && (
+          <div className="error-banner top-banner" role="alert"><WifiOff size={16} />
+            <span>{backendDown ? tr(health.error.message) : tr("Backend đang chạy nhưng Neo4j chưa sẵn sàng (/health = degraded). Topology và mô phỏng sẽ lỗi cho tới khi Neo4j kết nối lại.")}</span>
+            <button type="button" className="ghost-button" onClick={() => { loadHealth(); loadTopology(); }}><RefreshCw size={13} />{tr("Thử lại")}</button>
+          </div>
+        )}
+        {actors.status === 'loading' && <div className="state-box compact"><LoaderCircle size={18} className="spin" /><p>{tr("Đang tải danh sách actor demo…")}</p></div>}
+        {actors.status === 'error' && <div className="error-banner top-banner" role="alert"><AlertTriangle size={16} /><span>{tr(actors.error.message)}</span><button type="button" className="ghost-button" onClick={loadActors}><RefreshCw size={13} />{tr("Thử lại")}</button></div>}
+
+        {/* Stays mounted while hidden: the board's polling feeds alerts to the graph, and open forms keep their input. */}
+        {actor && <div className="workspace-grid" hidden={view !== 'incidents'}>
+          <IncidentBoard actor={actor} actors={actorList} incidents={incidents} onIncidentsChange={setIncidents} selectedId={incidentId} onSelect={selectIncident}
+            nodes={nodes} nodeId={selectedNodeId} incidentType={incidentType} severity={severity}
+            onNodeChange={setSelectedNodeId} onIncidentTypeChange={setIncidentType} onSeverityChange={changeSeverity} onSynced={setLastSync} />
+          {selectedIncident ? <IncidentDetail key={`${selectedIncident.id}:${actor.id}`} incident={selectedIncident} actor={actor} actors={actorList} onChange={upsertIncident} />
+            : <section className="panel incident-detail empty"><div className="state-box"><ClipboardList size={26} /><strong>{incidentId && incidents.length ? tr("Sự cố đang mở không thuộc danh sách của vai trò này") : tr("Chưa chọn sự cố")}</strong><p>{tr("Chọn một sự cố ở danh sách bên trái để xem tác động, hướng dẫn và thao tác.")}</p></div></section>}
+        </div>}
+
+        {actor && view === 'machines' && (machineId
+          ? <MachineDetail key={machineId} actor={actor} machineId={machineId} onBack={() => openMachine('')} onOpenIncident={openIncident} />
+          : <MachineList actor={actor} onOpen={openMachine} />)}
+
+        {actor && role === 'expert' && <div hidden={view !== 'lessons'}><LessonReview actor={actor} actors={actorList} incidents={incidents} /></div>}
+
+        {view === 'graph' && <>
+          <section className="kpi-grid">
+            <div className="kpi-card"><div className="kpi-icon"><Boxes size={18} /></div><span>{tr("NODE TRONG GRAPH")}</span><strong>{stats ? graph!.nodes.length : '—'}</strong><small>{stats ? tr("{0} công đoạn · {1} thiết bị · {2} lô", stats.byLabel.ProcessStep ?? 0, stats.byLabel.Equipment ?? 0, stats.byLabel.Batch ?? 0) : tr("Chưa tải topology")}</small></div>
+            <div className="kpi-card"><div className="kpi-icon violet"><GitBranch size={18} /></div><span>{tr("QUAN HỆ")}</span><strong>{stats ? graph!.edges.length : '—'}</strong><small>{stats ? <><b>{stats.propagationEdges}</b>{" "}{tr("đường lan truyền")}</> : tr("Chưa tải topology")}</small></div>
+            <div className="kpi-card"><div className="kpi-icon amber"><AlertTriangle size={18} /></div><span>{tr("NODE BỊ ẢNH HƯỞNG")}</span><strong>{shown ? shown.impacted_nodes.length : '—'}</strong><small>{shown ? (shown.impacted_nodes.length ? <>{tr("tối đa")}{" "}<b className="warning">{maxHop}</b>{" "}{tr("bước từ")}{" "}{shown.origin_id}</> : tr("không lan xuống sau {0}", shown.origin_id)) : tr("Chưa có sự cố hoặc mô phỏng")}</small></div>
+            <div className="kpi-card"><div className="kpi-icon green"><ClipboardList size={18} /></div><span>{tr("SỰ CỐ ĐANG MỞ")}</span><strong>{lastSync ? openIncidents.length : '—'}</strong><small>{lastSync ? <><b className={alertCount ? 'warning' : ''}>{alertCount}</b>{" "}{tr("cảnh báo chưa giao việc")}</> : tr("Chưa tải danh sách sự cố")}</small></div>
+          </section>
+
+          <section className="panel graph-panel">
+            <div className="panel-heading">
+              <div><div className="heading-row"><h2>{tr("Topology lan truyền")}</h2><span className="tag blue-tag">NEO4J</span></div><p>{tr("Click một node để chọn làm điểm phát sinh sự cố.")}</p></div>
+              <div className="graph-legend">
+                {legend.map(([label, swatch, text]) => <span key={label}><i className={`legend-dot ${swatch}`} />{tr(text)}</span>)}
+                <span><i className="legend-dot selected" />{tr('Đang chọn')}</span>
+                {shown && <span><i className="legend-dot origin" />{tr('Điểm phát sinh')}</span>}
+                {shown && shown.impacted_nodes.length > 0 && <span><i className="legend-dot impacted" />{tr("Bị ảnh hưởng")}</span>}
+              </div>
+            </div>
+            <div className="graph-wrap">
+              {topology.status === 'loading' && <div className="state-box"><LoaderCircle size={22} className="spin" /><strong>{tr("Đang tải topology…")}</strong><p>GET /graph/topology</p></div>}
+              {topology.status === 'error' && <div className="state-box error" role="alert"><AlertTriangle size={22} /><strong>{tr("Không tải được topology")}</strong><p>{tr(topology.error.message)}</p><button type="button" className="ghost-button" onClick={loadTopology}><RefreshCw size={13} />{tr("Thử lại")}</button></div>}
+              {graph && graph.nodes.length === 0 && <div className="state-box"><Boxes size={22} /><strong>{tr("Graph chưa có dữ liệu")}</strong><p>{tr("Chạy migration và seed trong")}{" "}<code>backend/data/</code>{" "}{tr("(xem docs/runbook.md), rồi tải lại.")}</p><button type="button" className="ghost-button" onClick={loadTopology}><RefreshCw size={13} />{tr("Tải lại")}</button></div>}
+              {graph && graph.nodes.length > 0 && (
+                <ErrorBoundary title={tr("Không thể vẽ graph")}>
+                  <GraphCanvas topology={graph} impactedNodes={shown?.impacted_nodes} originId={shown?.origin_id} selectedId={selectedNodeId} onNodeClick={setSelectedNodeId} />
+                </ErrorBoundary>
+              )}
+            </div>
+            <div className="graph-footer">
+              <span>{graph ? <><Wifi size={14} /> {graph.nodes.length} node · {graph.edges.length}{" "}{tr("quan hệ từ API")}</> : <><WifiOff size={14} />{tr("Chưa đồng bộ")}</>}</span>
+              <span>{tr("Đang chọn")}{" "}<b>{selectedNodeId ? nodeName(selectedNodeId) : '—'}</b></span>
+              {shown && <span>{tr("Đang hiển thị")}{" "}<b>{shown.origin_id}</b> · {shown.incident_type}</span>}
+            </div>
+          </section>
+
+          <div className="analysis-grid">
+            <section className="panel simulation-section">
+              <div className="section-title"><div><p className="eyebrow">{tr("PHÂN TÍCH WHAT-IF")}</p><h2>{tr("Mô phỏng sự cố")}</h2><p>{tr("Chỉ tính phạm vi ảnh hưởng, không tạo sự cố hay work order.")}</p></div><div className={`engine-state ${disabledReason ? 'idle' : ''}`}><span className="status-dot" /> {disabledReason ? tr("Chưa thể mô phỏng") : tr("Sẵn sàng mô phỏng")}</div></div>
+              <IncidentTrigger nodes={nodes} nodeId={selectedNodeId} incidentType={incidentType} severity={severity} onNodeChange={setSelectedNodeId} onIncidentTypeChange={setIncidentType} onSeverityChange={changeSeverity} onRunSimulation={handleSimulate} loading={simLoading} disabledReason={disabledReason} />
+              {latest?.error && (
+                <div className="error-banner" role="alert"><AlertTriangle size={16} />
+                  <span><b>{tr("Mô phỏng thất bại")}{latest.error.status ? ` (HTTP ${latest.error.status}${latest.error.code ? ` · ${latest.error.code}` : ''})` : ''}:</b> {tr(latest.error.message)}{lastSuccess ? tr(" Kết quả thành công gần nhất vẫn hiển thị trong nhật ký.") : ''}</span>
+                </div>
+              )}
+            </section>
+
+            <div className="side-stack">
+              {role === 'expert' && <ExpertInspector nodeId={selectedNodeId} />}
+              <section className="panel activity-panel">
+                <div className="panel-heading"><div><h2>{tr("Nhật ký")}</h2><p>{tr("Sự cố & mô phỏng trong phiên này")}</p></div></div>
+                <div className="activity-list">
+                  {runs.length === 0 && <p className="empty-note">{tr("Chưa có sự cố hay lần mô phỏng nào.")}</p>}
+                  {runs.map(r => (
+                    <div className="activity-item" key={r.id}>
+                      <div className={`event-icon ${r.error ? 'red' : r.kind === 'alert' ? 'amber' : 'green'}`}>{r.error || r.kind === 'alert' ? <AlertTriangle size={15} /> : <CheckCircle2 size={15} />}</div>
+                      <div><strong>{r.kind === 'alert' ? tr("Cảnh báo") : tr("Mô phỏng")} · {r.type} · {r.nodeId}</strong><p>{r.error ? tr(r.error.message) : tr("{0} node bị ảnh hưởng · mức {1}", r.result!.impacted_nodes.length, r.severity.toFixed(1))}</p></div>
+                      <time>{formatTime(r.at)}</time>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            </div>
+          </div>
+
+          {shown && (
+            <section className="panel results-section">
+              <div className="result-banner">
+                <div className="result-icon"><BrainCircuit size={20} /></div>
+                <div><strong>{tr("Phạm vi ảnh hưởng ·")}{" "}{nodeName(shown.origin_id)} ({shown.origin_id})</strong><p>{shown.incident_type}{" "}{tr("· mức")}{" "}{latest.severity.toFixed(1)} · {shown.impacted_nodes.length}{" "}{tr("node phía sau bị ảnh hưởng ·")}{" "}{formatTime(latest.at)}</p></div>
+                <span className={`severity-badge ${shown.impacted_nodes.length ? '' : 'muted'}`}>{shown.impacted_nodes.length ? tr("ĐÃ XÁC ĐỊNH ẢNH HƯỞNG") : tr("KHÔNG LAN TRUYỀN")}</span>
+              </div>
+              <ErrorBoundary title={tr("Không thể hiển thị kết quả")}>
+                {shown.impacted_nodes.length > 0
+                  ? <ImpactTable nodes={shown.impacted_nodes} onSelect={setSelectedNodeId} />
+                  : <div className="state-box compact"><CheckCircle2 size={18} /><strong>{tr("Không có node downstream bị ảnh hưởng")}</strong><p>{shown.origin_id}{" "}{tr("không có quan hệ OPERATES_IN / FLOWS_TO / AFFECTS đi ra trong phạm vi max hops.")}</p></div>}
+                <ActionMatrix key={latest.id} actions={shown.actions_by_department} departmentNames={departmentNames} />
+              </ErrorBoundary>
+            </section>
+          )}
+        </>}
       </main>
     </div>
   );
